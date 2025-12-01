@@ -1,23 +1,41 @@
 <!DOCTYPE html>
 <html>
   <head>
-
+    <meta charset="UTF-8" />
   </head>
-  <body>
+  <body style="padding:40px; font-family:sans-serif; text-align:center;">
 
+    <h2>Dynamic SMS Button</h2>
+    <p>This button uses the "body" text from the URL.</p>
 
-    <!-- This is the Tony-style test button -->
-<a href="sms:+13176742081?&body=Hi%20this%20is%20a%20test%20from%20Thrivehood"
-   id="preview-button"
-   class="button-preview medium"
-   target="_blank"
-   style="background-color: rgb(0, 123, 255); color: rgb(255, 255, 255);">
-  Text Us
-</a>
+    <!-- The actual SMS button (Tony-style) -->
+    <a id="preview-button"
+       href="#"
+       target="_blank"
+       style="background-color: rgb(0, 123, 255); color: rgb(255, 255, 255); padding: 16px 24px; text-decoration:none; border-radius:8px; font-size:18px;">
+      Text Us
+    </a>
 
+    <script>
+      // 1. Read ?body=... from the URL
+      const url = new URL(window.location.href);
+      const bodyParam = url.searchParams.get("body");
+
+      // 2. Use the URL body if present, or fall back to your old static text
+      const bodyText = bodyParam || "Hi this is a test from Thrivehood";
+
+      // 3. Build the sms: link just like your working version
+      const phoneNumber = "+13176742081"; // your Thrivehood number
+      const smsHref = `sms:${phoneNumber}?&body=${encodeURIComponent(bodyText)}`;
+
+      // 4. Set the link's href dynamically
+      const link = document.getElementById("preview-button");
+      link.href = smsHref;
+    </script>
 
   </body>
 </html>
+
 
 
 
