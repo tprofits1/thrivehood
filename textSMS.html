@@ -1,21 +1,164 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>Thrivehood SMS Bridge</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <style>
+    :root {
+      --thrive-pink: #c64366;
+      --thrive-dark: #222222;
+      --thrive-light: #f7f7f7;
+    }
+
     body {
       font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
       text-align: center;
-      padding: 20px;
+      margin: 0;
+      padding: 24px 16px;
+      background: var(--thrive-light);
+      color: var(--thrive-dark);
+    }
+
+    .card {
+      max-width: 480px;
+      margin: 0 auto;
+      background: #ffffff;
+      border-radius: 12px;
+      padding: 20px 16px 24px;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+    }
+
+    h1 {
+      font-size: 20px;
+      margin: 0 0 8px;
+    }
+
+    p {
+      margin: 4px 0;
+      font-size: 14px;
+    }
+
+    .preview-label {
+      margin-top: 12px;
+      font-weight: 600;
+      font-size: 13px;
+      text-align: left;
+    }
+
+    .preview-box {
+      margin-top: 4px;
+      width: 100%;
+      min-height: 80px;
+      padding: 8px;
+      border-radius: 8px;
+      border: 1px solid #dddddd;
+      font-size: 13px;
+      text-align: left;
+      white-space: pre-wrap;
+      box-sizing: border-box;
+      background: #fafafa;
+    }
+
+    .btn {
+      margin-top: 16px;
+      display: inline-block;
+      padding: 12px 24px;
+      border-radius: 999px;
+      border: none;
+      background: var(--thrive-pink);
+      color: #ffffff;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
+
+    .small-note {
+      margin-top: 10px;
+      font-size: 12px;
+      color: #666666;
     }
   </style>
 </head>
 <body>
-  <a href="sms:1234567890" target="_self" style="padding:10px 20px; font-size:16px; text-decoration:none; display:inline-block; background-color:#007bff; color:#ffffff; border:none; border-radius:4px; box-shadow:none">Text Us</a>
-<!-- Created at https://www.tonyherman.com/tools/sms-button-generator/ -->
+  <div class="card">
+    <h1>Send Text via Thrivehood</h1>
+    <p id="toLine"></p>
+
+    <div class="preview-label">Message preview:</div>
+    <div id="preview" class="preview-box"></div>
+
+    <button id="sendBtn" class="btn">Send Text via Thrivehood</button>
+
+    <p class="small-note">
+      If nothing happens after you tap the button, open your Messages app and try again.
+    </p>
+  </div>
+
+  <script>
+    function getParam(name) {
+      var url = new URL(window.location.href);
+      return url.searchParams.get(name) || "";
+    }
+
+    var toParam = getParam("to");      // e.g. +13176742081 (may be encoded)
+    var bodyParam = getParam("body");  // message text (may be encoded)
+
+    // Try to decode body if it was URL-encoded upstream
+    var body;
+    try {
+      body = decodeURIComponent(bodyParam || "");
+    } catch (e) {
+      body = bodyParam || "";
+    }
+
+    // Same for "to" in case it was encoded
+    var to;
+    try {
+      to = decodeURIComponent(toParam || "");
+    } catch (e) {
+      to = toParam || "";
+    }
+
+    var toLine = document.getElementById("toLine");
+    var preview = document.getElementById("preview");
+    var sendBtn = document.getElementById("sendBtn");
+
+    if (!to) {
+      toLine.textContent = "Missing destination phone number.";
+      sendBtn.disabled = true;
+    } else {
+      toLine.textContent = "This text will be sent to: " + to;
+    }
+
+    preview.textContent = body || "(No message text provided yet.)";
+
+    sendBtn.addEventListener("click", function () {
+      if (!to) return;
+
+      var ua = navigator.userAgent || "";
+      var isIOS = /iPhone|iPad|iPod/i.test(ua);
+      var encodedBody = encodeURIComponent(body || "");
+
+      // iOS tends to prefer &body=, others usually accept ?body=
+      var smsUrl;
+      if (isIOS) {
+        smsUrl = "sms:" + to + "&body=" + encodedBody;
+      } else {
+        smsUrl = "sms:" + to + "?body=" + encodedBody;
+      }
+
+      console.log("Redirecting to:", smsUrl);
+      window.location.href = smsUrl;
+    });
+  </script>
 </body>
 </html>
+
 
 
