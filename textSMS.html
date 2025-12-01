@@ -1,39 +1,20 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <meta charset="UTF-8" />
+
   </head>
-  <body style="padding:40px; font-family:sans-serif; text-align:center;">
+  <body>
 
-    <h2>Dynamic SMS Test</h2>
-    <p>This button will use the "body" text from the URL.</p>
 
-    <a id="smsLink"
-       href="#"
-       style="
-         display:inline-block;
-         padding:16px 28px;
-         background:#4CAF50;
-         color:white;
-         text-decoration:none;
-         border-radius:8px;
-         font-size:20px;
-       ">
-      TAP TO SEND SMS
-    </a>
+    <!-- This is the Tony-style test button -->
+<a href="sms:+13176742081?&body=Hi%20this%20is%20a%20test%20from%20Thrivehood"
+   id="preview-button"
+   class="button-preview medium"
+   target="_blank"
+   style="background-color: rgb(0, 123, 255); color: rgb(255, 255, 255);">
+  Text Us
+</a>
 
-    <script>
-      // Read ?body=xxx from the URL
-      const url = new URL(window.location.href);
-      const body = url.searchParams.get("body") || "Hello from Thrivehood (default test)";
-      
-      // Build the SMS URL
-      const smsNumber = "+13176742081"; // your real number
-      const smsURL = `sms:${smsNumber}?&body=${encodeURIComponent(body)}`;
-
-      // Set the button's href dynamically
-      document.getElementById("smsLink").href = smsURL;
-    </script>
 
   </body>
 </html>
