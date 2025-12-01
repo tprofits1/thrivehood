@@ -15,42 +15,6 @@
 <body>
   <a href="sms:1234567890" target="_self" style="padding:10px 20px; font-size:16px; text-decoration:none; display:inline-block; background-color:#007bff; color:#ffffff; border:none; border-radius:4px; box-shadow:none">Text Us</a>
 <!-- Created at https://www.tonyherman.com/tools/sms-button-generator/ -->
-  <p>Opening your text app…</p>
-  <p>If nothing happens, please open your Messages app and try again.</p>
-
-  <script>
-    // Read query parameters: ?to=...&body=...
-    function getParam(name) {
-      var url = new URL(window.location.href);
-      return url.searchParams.get(name) || "";
-    }
-
-    var to = getParam("to");     // e.g. "+13176742081"
-    var body = getParam("body"); // text from your Wix popup
-
-    if (!to) {
-      console.log("Missing 'to' param");
-    }
-
-    // Detect iOS vs others
-    var ua = navigator.userAgent || "";
-    var isIOS = /iPhone|iPad|iPod/i.test(ua);
-
-    var encodedBody = encodeURIComponent(body || "");
-
-    // iOS usually likes &body=, others often ?body=
-    var smsUrl;
-    if (isIOS) {
-      smsUrl = "sms:" + to + "&body=" + encodedBody;
-    } else {
-      smsUrl = "sms:" + to + "?body=" + encodedBody;
-    }
-
-    console.log("Redirecting to:", smsUrl);
-
-    // Trigger SMS app
-    window.location.href = smsUrl;
-  </script>
 </body>
 </html>
 
