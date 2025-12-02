@@ -8,6 +8,9 @@
     <h2>Dynamic SMS Button</h2>
     <p>This button uses the "body" text from the URL.</p>
 
+    <!-- Debug area so we can SEE what the page thinks the message is -->
+    <p id="debug" style="margin-bottom:20px; font-size:14px; color:#555;"></p>
+
     <!-- The actual SMS button (Tony-style) -->
     <a id="preview-button"
        href="#"
@@ -31,10 +34,15 @@
       // 4. Set the link's href dynamically
       const link = document.getElementById("preview-button");
       link.href = smsHref;
+
+      // 5. Show what the page *thinks* it's using
+      const debug = document.getElementById("debug");
+      debug.textContent = `bodyParam = "${bodyParam}", bodyText = "${bodyText}"`;
     </script>
 
   </body>
 </html>
+
 
 
 
