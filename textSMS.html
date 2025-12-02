@@ -2,46 +2,60 @@
 <html>
   <head>
     <meta charset="UTF-8" />
+    <title>Thrivehood SMS Bridge</title>
   </head>
   <body style="padding:40px; font-family:sans-serif; text-align:center;">
 
     <h2>Dynamic SMS Button</h2>
     <p>This button uses the "body" text from the URL.</p>
 
-    <!-- Debug area so we can SEE what the page thinks the message is -->
+    <!-- Debug area so we can SEE what the page thinks the URL and body are -->
     <p id="debug" style="margin-bottom:20px; font-size:14px; color:#555;"></p>
 
     <!-- The actual SMS button (Tony-style) -->
     <a id="preview-button"
        href="#"
        target="_blank"
-       style="background-color: rgb(0, 123, 255); color: rgb(255, 255, 255); padding: 16px 24px; text-decoration:none; border-radius:8px; font-size:18px;">
+       style="background-color: rgb(0, 123, 255);
+              color: rgb(255, 255, 255);
+              padding: 16px 24px;
+              text-decoration:none;
+              border-radius:8px;
+              font-size:18px;">
       Text Us
     </a>
 
     <script>
-      // 1. Read ?body=... from the URL
-      const url = new URL(window.location.href);
-      const bodyParam = url.searchParams.get("body");
+      // SAFER, MANUAL PARSE OF ?body= FROM THE FULL HREF
+      const href = window.location.href;
 
-      // 2. Use the URL body if present, or fall back to your old static text
+      // Try to grab "body=..." from anywhere in the URL
+      const bodyMatch = href.match(/[?&]body=([^&]+)/);
+      const bodyParam = bodyMatch ? decodeURIComponent(bodyMatch[1]) : null;
+
+      // Fall back if nothing was found
       const bodyText = bodyParam || "Hi this is a test from Thrivehood";
 
-      // 3. Build the sms: link just like your working version
-      const phoneNumber = "+13176742081"; // your Thrivehood number
+      // Your Thrivehood number
+      const phoneNumber = "+13176742081";
+
+      // Build the sms: link
       const smsHref = `sms:${phoneNumber}?&body=${encodeURIComponent(bodyText)}`;
 
-      // 4. Set the link's href dynamically
+      // Apply to the button
       const link = document.getElementById("preview-button");
       link.href = smsHref;
 
-      // 5. Show what the page *thinks* it's using
+      // Debug info so we can SEE what the page thinks
       const debug = document.getElementById("debug");
-      debug.textContent = `bodyParam = "${bodyParam}", bodyText = "${bodyText}"`;
+      debug.textContent = `href = "${href}"
+bodyParam = "${bodyParam}"
+bodyText = "${bodyText}"`;
     </script>
 
   </body>
 </html>
+
 
 
 
