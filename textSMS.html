@@ -2,17 +2,14 @@
 <html>
   <head>
     <meta charset="UTF-8" />
-    <title>Thrivehood SMS Bridge</title>
+    <title>Thrivehood SMS</title>
   </head>
   <body style="padding:40px; font-family:sans-serif; text-align:center;">
 
-    <h2>Dynamic SMS Button</h2>
-    <p>This button uses the "body" text from the URL.</p>
+    <h2>Text This Thrivehood Teen</h2>
+    <p>Tap the button below to open your Messages app with a pre-filled text.</p>
 
-    <!-- Debug area so we can SEE what the page thinks the URL and body are -->
-    <p id="debug" style="margin-bottom:20px; font-size:14px; color:#555;"></p>
-
-    <!-- The actual SMS button (Tony-style) -->
+    <!-- The SMS button -->
     <a id="preview-button"
        href="#"
        target="_blank"
@@ -26,10 +23,8 @@
     </a>
 
     <script>
-      // SAFER, MANUAL PARSE OF ?body= FROM THE FULL HREF
+      // Manual parse of ?body= from the full href
       const href = window.location.href;
-
-      // Try to grab "body=..." from anywhere in the URL
       const bodyMatch = href.match(/[?&]body=([^&]+)/);
       const bodyParam = bodyMatch ? decodeURIComponent(bodyMatch[1]) : null;
 
@@ -45,16 +40,11 @@
       // Apply to the button
       const link = document.getElementById("preview-button");
       link.href = smsHref;
-
-      // Debug info so we can SEE what the page thinks
-      const debug = document.getElementById("debug");
-      debug.textContent = `href = "${href}"
-bodyParam = "${bodyParam}"
-bodyText = "${bodyText}"`;
     </script>
 
   </body>
 </html>
+
 
 
 
