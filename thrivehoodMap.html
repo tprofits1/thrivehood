@@ -3,7 +3,6 @@
   <head>
     <meta charset="utf-8" />
     <title>Thrivehood Area Selector</title>
-
     <!-- Leaflet CSS -->
     <link
       rel="stylesheet"
@@ -11,7 +10,6 @@
       integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
       crossorigin=""
     />
-
     <style>
       html, body {
         margin: 0;
@@ -19,58 +17,62 @@
         height: 100%;
       }
 
+      /* Make the page a vertical stack: map at top, info below */
+      body {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+      }
+
       #map {
         width: 100%;
-        height: 100%;
+        height: 70%; /* adjust if you want more map */
+        flex-shrink: 0;
       }
 
       .leaflet-control {
         font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       }
 
-      /* Tiny floating Confirm button (no big box) */
-      .confirm-fab {
-        position: absolute;
-        bottom: 10px;
-        right: 10px;
-        z-index: 1000;
+      /* INFO-BOX IS NOW STATIC, NOT OVERLAYING */
+      .info-box {
+        position: static;   /* <-- was absolute */
+        width: 100%;
+        background: rgba(255,255,255,0.95);
+        padding: 10px 12px;
+        font-size: 14px;
+        line-height: 1.4;
+        box-sizing: border-box;
+        border-top: 1px solid #ddd;
       }
 
       .btn-confirm {
-        padding: 8px 14px;
+        display: inline-block;
+        margin-top: 6px;
+        padding: 6px 12px;
         border-radius: 999px;
         border: none;
         background: #4c9949;
         color: #fff;
         font-size: 13px;
         cursor: pointer;
-        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
-        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      }
-
-      #status {
-        position: absolute;
-        left: 10px;
-        bottom: 10px;
-        z-index: 999;
-        font-size: 11px;
-        padding: 4px 6px;
-        background: rgba(255,255,255,0.9);
-        border-radius: 4px;
-        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       }
     </style>
   </head>
 
   <body>
+
+    <!-- MAP FIRST -->
     <div id="map"></div>
 
-    <!-- Small status label -->
-    <div id="status">Tap the map to select your area.</div>
-
-    <!-- Floating confirm button -->
-    <div class="confirm-fab">
+    <!-- INFO BOX NOW BELOW THE MAP -->
+    <div class="info-box">
+      <strong>Step 1:</strong> Click the map to choose the center of your 1-mile x 1-mile area.<br />
+      <strong>Step 2:</strong> Click “Confirm Area” to send it to Thrivehood.
       <button class="btn-confirm" id="confirmBtn">Confirm Area</button>
+      <div id="status" style="margin-top:4px; font-size:12px; color:#555;">
+        No area selected yet.
+      </div>
     </div>
 
     <!-- Leaflet JS -->
@@ -84,10 +86,9 @@
       // Approximate 1 mile in meters
       const ONE_MILE_METERS = 1609.34;
 
-      // Initialize the map (center somewhere reasonable; you can change)
-      const map = L.map("map").setView([39.9784, -86.1180], 13); // Carmel, IN-ish
+      // Initialize the map
+      const map = L.map("map").setView([39.9784, -86.1180], 13);
 
-      // Base map tiles (OpenStreetMap)
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         maxZoom: 19,
         attribution: "&copy; OpenStreetMap contributors"
@@ -96,12 +97,11 @@
       let selectedRect = null;
       let selectedBounds = null;
 
-      // Converts meters to degrees for this latitude (rough approximation).
       function metersToDegrees(lat, meters) {
-        const earthRadius = 6378137; // meters
+        const earthRadius = 6378137;
         const dLat = (meters / earthRadius) * (180 / Math.PI);
         const dLng =
-          (meters / (earthRadius * Math.cos((Math.PI * lat) / 180))) *
+          (meters / (earthRadius * Math.cos((Math.PI * lat / 180)))) *
           (180 / Math.PI);
         return { dLat, dLng };
       }
@@ -110,18 +110,16 @@
         const lat = e.latlng.lat;
         const lng = e.latlng.lng;
 
-        // Half-mile in each direction from the center
         const halfMile = ONE_MILE_METERS / 2;
         const { dLat, dLng } = metersToDegrees(lat, halfMile);
 
         const north = lat + dLat;
         const south = lat - dLat;
-        const east = lng + dLng;
-        const west = lng - dLng;
+        const east  = lng + dLng;
+        const west  = lng - dLng;
 
         const bounds = L.latLngBounds([south, west], [north, east]);
 
-        // Remove previous rectangle if any
         if (selectedRect) {
           map.removeLayer(selectedRect);
         }
@@ -136,13 +134,12 @@
         map.fitBounds(bounds, { padding: [20, 20] });
 
         document.getElementById("status").textContent =
-          "Area selected. Tap Confirm Area to save.";
+          "Area selected. Click Confirm to save.";
       });
 
-      // Send bounds to Wix parent via postMessage
       document.getElementById("confirmBtn").addEventListener("click", function () {
         if (!selectedBounds) {
-          alert("Please tap on the map to select an area first.");
+          alert("Please click on the map to select an area first.");
           return;
         }
 
@@ -154,12 +151,13 @@
           }
         };
 
-        // Post message to parent (Wix HTML component listener)
         window.parent.postMessage(data, "*");
 
-        document.getElementById("status").textContent = "Area sent to Thrivehood!";
+        document.getElementById("status").textContent =
+          "Area sent to Thrivehood!";
       });
     </script>
   </body>
 </html>
+
 
