@@ -3,6 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <title>Thrivehood Area Selector</title>
+
     <!-- Leaflet CSS -->
     <link
       rel="stylesheet"
@@ -10,6 +11,7 @@
       integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
       crossorigin=""
     />
+
     <style>
       html, body {
         margin: 0;
@@ -26,75 +28,50 @@
         font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       }
 
-      .info-box {
+      /* Tiny floating Confirm button (no big box) */
+      .confirm-fab {
         position: absolute;
         bottom: 10px;
-        left: 10px;
-        background: rgba(255,255,255,0.9);
-        padding: 8px 10px;
-        border-radius: 6px;
-        font-size: 13px;
-        max-width: 260px;
-        line-height: 1.3;
+        right: 10px;
         z-index: 1000;
       }
 
       .btn-confirm {
-        display: inline-block;
-        margin-top: 6px;
-        padding: 6px 10px;
+        padding: 8px 14px;
         border-radius: 999px;
         border: none;
         background: #4c9949;
         color: #fff;
         font-size: 13px;
         cursor: pointer;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       }
 
-      /* ================================
-         MOBILE LAYOUT (OPTION 1)
-         Move info-box out of the way
-         ================================ */
-      @media (max-width: 600px) {
-        body {
-          display: flex;
-          flex-direction: column;
-          height: 100%;
-        }
-
-        #map {
-          height: 70%; /* map gets most of the screen */
-        }
-
-        .info-box {
-          position: static;        /* no longer overlaying the map */
-          width: 100%;
-          box-sizing: border-box;
-          margin: 0;
-          border-radius: 0;
-          font-size: 12px;
-          padding: 8px 10px;
-          background: rgba(255,255,255,0.95);
-          max-width: none;
-        }
-
-        .btn-confirm {
-          margin-top: 4px;
-        }
+      #status {
+        position: absolute;
+        left: 10px;
+        bottom: 10px;
+        z-index: 999;
+        font-size: 11px;
+        padding: 4px 6px;
+        background: rgba(255,255,255,0.9);
+        border-radius: 4px;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       }
     </style>
   </head>
-  <body>
-    <div class="info-box">
-      <strong>Step 1:</strong> Click the map to choose the center of your 1-mile x 1-mile area.<br />
-      <strong>Step 2:</strong> Click “Confirm Area” to send it to Thrivehood.
-      <button class="btn-confirm" id="confirmBtn">Confirm Area</button>
-      <div id="status" style="margin-top:4px; font-size:11px; color:#555;">
-        No area selected yet.
-      </div>
-    </div>
 
+  <body>
     <div id="map"></div>
+
+    <!-- Small status label -->
+    <div id="status">Tap the map to select your area.</div>
+
+    <!-- Floating confirm button -->
+    <div class="confirm-fab">
+      <button class="btn-confirm" id="confirmBtn">Confirm Area</button>
+    </div>
 
     <!-- Leaflet JS -->
     <script
@@ -142,10 +119,7 @@
         const east = lng + dLng;
         const west = lng - dLng;
 
-        const bounds = L.latLngBounds(
-          [south, west],
-          [north, east]
-        );
+        const bounds = L.latLngBounds([south, west], [north, east]);
 
         // Remove previous rectangle if any
         if (selectedRect) {
@@ -162,13 +136,13 @@
         map.fitBounds(bounds, { padding: [20, 20] });
 
         document.getElementById("status").textContent =
-          "Area selected. Click Confirm to save.";
+          "Area selected. Tap Confirm Area to save.";
       });
 
       // Send bounds to Wix parent via postMessage
       document.getElementById("confirmBtn").addEventListener("click", function () {
         if (!selectedBounds) {
-          alert("Please click on the map to select an area first.");
+          alert("Please tap on the map to select an area first.");
           return;
         }
 
@@ -183,9 +157,9 @@
         // Post message to parent (Wix HTML component listener)
         window.parent.postMessage(data, "*");
 
-        document.getElementById("status").textContent =
-          "Area sent to Thrivehood!";
+        document.getElementById("status").textContent = "Area sent to Thrivehood!";
       });
     </script>
   </body>
 </html>
+
