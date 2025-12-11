@@ -22,21 +22,22 @@
         display: flex;
         flex-direction: column;
         height: 100%;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       }
 
       #map {
         width: 100%;
-        height: 70%; /* adjust if you want more map */
+        height: 70%;
         flex-shrink: 0;
       }
 
       .leaflet-control {
-        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        font-family: inherit;
       }
 
       /* INFO-BOX IS NOW STATIC, NOT OVERLAYING */
       .info-box {
-        position: static;   /* <-- was absolute */
+        position: static;
         width: 100%;
         background: rgba(255,255,255,0.95);
         padding: 10px 12px;
@@ -57,22 +58,33 @@
         font-size: 13px;
         cursor: pointer;
       }
+
+      #status {
+        margin-top: 4px;
+        font-size: 12px;
+        color: #555;
+      }
+
+      #status.error {
+        color: #b00020;
+      }
+
+      #status.success {
+        color: #1b5e20;
+      }
     </style>
   </head>
 
   <body>
-
     <!-- MAP FIRST -->
     <div id="map"></div>
 
-    <!-- INFO BOX NOW BELOW THE MAP -->
+    <!-- INFO BOX BELOW THE MAP -->
     <div class="info-box">
       <strong>Step 1:</strong> Click the map to choose the center of your 1-mile x 1-mile area.<br />
       <strong>Step 2:</strong> Click “Confirm Area” to send it to Thrivehood.
       <button class="btn-confirm" id="confirmBtn">Confirm Area</button>
-      <div id="status" style="margin-top:4px; font-size:12px; color:#555;">
-        No area selected yet.
-      </div>
+      <div id="status">No area selected yet.</div>
     </div>
 
     <!-- Leaflet JS -->
@@ -86,7 +98,6 @@
       // Approximate 1 mile in meters
       const ONE_MILE_METERS = 1609.34;
 
-      // Initialize the map
       const map = L.map("map").setView([39.9784, -86.1180], 13);
 
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -94,8 +105,19 @@
         attribution: "&copy; OpenStreetMap contributors"
       }).addTo(map);
 
+      const statusEl = document.getElementById("status");
+      const confirmBtn = document.getElementById("confirmBtn");
+
       let selectedRect = null;
       let selectedBounds = null;
+      let reservedRects = []; // rectangles showing other teens' claimed areas
+
+      function setStatus(text, mode) {
+        statusEl.textContent = text || "";
+        statusEl.classList.remove("error", "success");
+        if (mode === "error") statusEl.classList.add("error");
+        if (mode === "success") statusEl.classList.add("success");
+      }
 
       function metersToDegrees(lat, meters) {
         const earthRadius = 6378137;
@@ -106,6 +128,7 @@
         return { dLat, dLng };
       }
 
+      // Handle clicks to choose 1-mile x 1-mile area
       map.on("click", function (e) {
         const lat = e.latlng.lat;
         const lng = e.latlng.lng;
@@ -133,11 +156,11 @@
         selectedBounds = bounds;
         map.fitBounds(bounds, { padding: [20, 20] });
 
-        document.getElementById("status").textContent =
-          "Area selected. Click Confirm to save.";
+        setStatus("Area selected. Click Confirm to save.");
       });
 
-      document.getElementById("confirmBtn").addEventListener("click", function () {
+      // Send selection to Thrivehood (Wix)
+      confirmBtn.addEventListener("click", function () {
         if (!selectedBounds) {
           alert("Please click on the map to select an area first.");
           return;
@@ -152,12 +175,67 @@
         };
 
         window.parent.postMessage(data, "*");
+        setStatus("Sending area to Thrivehood...");
+      });
 
-        document.getElementById("status").textContent =
-          "Area sent to Thrivehood!";
+      // Listen for messages *from* Wix
+      window.addEventListener("message", function (event) {
+        const data = event.data || {};
+        if (!data.type) return;
+
+        // 1) Draw existing reserved areas
+        if (data.type === "THRIVEHOOD_EXISTING_AREAS") {
+          // data.areas = [{ south, west, north, east }, ...]
+          // Clear previous
+          reservedRects.forEach(r => map.removeLayer(r));
+          reservedRects = [];
+
+          (data.areas || []).forEach(a => {
+            const bounds = L.latLngBounds(
+              [a.south, a.west],
+              [a.north, a.east]
+            );
+            const rect = L.rectangle(bounds, {
+              color: "#b00020",
+              weight: 2,
+              fillOpacity: 0.2,
+              interactive: false
+            }).addTo(map);
+            reservedRects.push(rect);
+          });
+
+          return;
+        }
+
+        // 2) Conflict: overlap with another teen's area
+        if (data.type === "THRIVEHOOD_AREA_CONFLICT") {
+          if (selectedRect) {
+            selectedRect.setStyle({
+              color: "#b00020",
+              fillOpacity: 0.25
+            });
+          }
+          setStatus("That 1-mile block is already reserved. Please choose a different area.", "error");
+          return;
+        }
+
+        // 3) Confirmed: area successfully reserved
+        if (data.type === "THRIVEHOOD_AREA_CONFIRMED") {
+          if (selectedRect) {
+            selectedRect.setStyle({
+              color: "#4c9949",
+              fillOpacity: 0.25
+            });
+          }
+          setStatus("Your 1-mile service area is reserved!", "success");
+          // Optional: prevent changing it again
+          // confirmBtn.disabled = true;
+          return;
+        }
       });
     </script>
   </body>
 </html>
+
 
 
