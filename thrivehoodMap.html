@@ -36,7 +36,7 @@
 
       /* INFO-BOX IS NOW STATIC, NOT OVERLAYING */
       .info-box {
-        position: static;   /* <-- was absolute */
+        position: static;
         width: 100%;
         background: rgba(255,255,255,0.95);
         padding: 10px 12px;
@@ -94,6 +94,55 @@
         attribution: "&copy; OpenStreetMap contributors"
       }).addTo(map);
 
+      // ---------- RESERVED AREAS (from Wix) ----------
+      let reservedRects = [];
+
+      function clearReservedRects() {
+        reservedRects.forEach(r => map.removeLayer(r));
+        reservedRects = [];
+      }
+
+      function drawReservedRects(rectangles) {
+        clearReservedRects();
+
+        rectangles.forEach(r => {
+          if (
+            typeof r.south !== "number" ||
+            typeof r.north !== "number" ||
+            typeof r.west  !== "number" ||
+            typeof r.east  !== "number"
+          ) {
+            return;
+          }
+
+          const bounds = L.latLngBounds(
+            [r.south, r.west],
+            [r.north, r.east]
+          );
+
+          const rect = L.rectangle(bounds, {
+            color: "#ff0000",
+            weight: 1.5,
+            fillOpacity: 0.1
+          }).addTo(map);
+
+          reservedRects.push(rect);
+        });
+      }
+
+      // Listen for messages from Wix (reserved zones)
+      window.addEventListener("message", function(event) {
+        const data = event.data;
+        if (!data || !data.type) return;
+
+        if (data.type === "THRIVEHOOD_RESERVED_AREAS") {
+          const rectangles = data.rectangles || [];
+          console.log("Received reserved rectangles:", rectangles.length);
+          drawReservedRects(rectangles);
+        }
+      });
+
+      // ---------- NEW TEEN'S SELECTED AREA ----------
       let selectedRect = null;
       let selectedBounds = null;
 
@@ -159,6 +208,7 @@
     </script>
   </body>
 </html>
+
 
 
 
