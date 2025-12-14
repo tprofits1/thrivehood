@@ -22,6 +22,7 @@
         display: flex;
         flex-direction: column;
         height: 100%;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       }
 
       #map {
@@ -31,7 +32,7 @@
       }
 
       .leaflet-control {
-        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        font-family: inherit;
       }
 
       /* INFO-BOX IS NOW STATIC, NOT OVERLAYING */
@@ -94,8 +95,10 @@
         attribution: "&copy; OpenStreetMap contributors"
       }).addTo(map);
 
+      const statusEl = document.getElementById("status");
+
       // ---------- RESERVED AREAS (from Wix) ----------
-      let reservedRects = [];
+      let reservedRects = []; // will hold Leaflet rectangles
 
       function clearReservedRects() {
         reservedRects.forEach(r => map.removeLayer(r));
@@ -128,6 +131,35 @@
 
           reservedRects.push(rect);
         });
+      }
+
+      // Helper: check rectangle overlap (axis-aligned)
+      function rectanglesOverlap(a, b) {
+        // a and b are objects with south, north, west, east
+        return (
+          a.south < b.north &&
+          a.north > b.south &&
+          a.west  < b.east &&
+          a.east  > b.west
+        );
+      }
+
+      // Helper: see if candidate bounds overlap ANY reserved rect
+      function isOverlappingReserved(candidateBounds) {
+        for (const rect of reservedRects) {
+          const b = rect.getBounds();
+          const reserved = {
+            south: b.getSouth(),
+            north: b.getNorth(),
+            west:  b.getWest(),
+            east:  b.getEast()
+          };
+
+          if (rectanglesOverlap(candidateBounds, reserved)) {
+            return true;
+          }
+        }
+        return false;
       }
 
       // Listen for messages from Wix (reserved zones)
@@ -167,6 +199,15 @@
         const east  = lng + dLng;
         const west  = lng - dLng;
 
+        const candidate = { south, west, north, east };
+
+        // 🔴 NEW: block selection if it overlaps any reserved area
+        if (isOverlappingReserved(candidate)) {
+          statusEl.textContent =
+            "That 1-mile area overlaps an existing exclusive zone. Please choose another location.";
+          return;
+        }
+
         const bounds = L.latLngBounds([south, west], [north, east]);
 
         if (selectedRect) {
@@ -182,8 +223,7 @@
         selectedBounds = bounds;
         map.fitBounds(bounds, { padding: [20, 20] });
 
-        document.getElementById("status").textContent =
-          "Area selected. Click Confirm to save.";
+        statusEl.textContent = "Area selected. Click Confirm to save.";
       });
 
       document.getElementById("confirmBtn").addEventListener("click", function () {
@@ -202,12 +242,12 @@
 
         window.parent.postMessage(data, "*");
 
-        document.getElementById("status").textContent =
-          "Area sent to Thrivehood!";
+        statusEl.textContent = "Area sent to Thrivehood!";
       });
     </script>
   </body>
 </html>
+
 
 
 
