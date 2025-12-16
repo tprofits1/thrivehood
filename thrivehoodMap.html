@@ -285,12 +285,14 @@
 
         const candidate = { south, west, north, east };
 
-        // Keep your current production rule: block if it overlaps an existing exclusive zone
-        if (isOverlappingReserved(candidate)) {
-          statusEl.textContent =
-            "That area overlaps an existing exclusive zone. Please choose another location.";
-          return;
-        }
+// ✅ Allow overlap visually (do NOT block). We'll enforce rules later.
+if (isOverlappingReserved(candidate)) {
+  statusEl.textContent =
+    "Note: This area overlaps an existing exclusive zone. Overlapping parts will be unavailable.";
+} else {
+  statusEl.textContent = "Area selected. Click Confirm to save.";
+}
+
 
         const bounds = L.latLngBounds([south, west], [north, east]);
 
