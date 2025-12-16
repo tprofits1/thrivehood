@@ -3,13 +3,14 @@
   <head>
     <meta charset="utf-8" />
     <title>Thrivehood Area Selector</title>
+
     <!-- Leaflet CSS -->
     <link
       rel="stylesheet"
       href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
       crossorigin=""
     />
+
     <style>
       html, body {
         margin: 0;
@@ -17,7 +18,6 @@
         height: 100%;
       }
 
-      /* Make the page a vertical stack: map at top, info below */
       body {
         display: flex;
         flex-direction: column;
@@ -31,23 +31,15 @@
         flex-shrink: 0;
       }
 
-      .leaflet-control {
-        font-family: inherit;
-      }
-
       .info-box {
-        position: static;
-        width: 100%;
         background: rgba(255,255,255,0.95);
         padding: 10px 12px;
         font-size: 14px;
         line-height: 1.4;
-        box-sizing: border-box;
         border-top: 1px solid #ddd;
       }
 
       .btn-confirm {
-        display: inline-block;
         margin-top: 6px;
         padding: 6px 12px;
         border-radius: 999px;
@@ -61,14 +53,14 @@
   </head>
 
   <body>
-    <!-- MAP FIRST -->
+
     <div id="map"></div>
 
-    <!-- INFO BOX NOW BELOW THE MAP -->
     <div class="info-box">
-      <strong>Step 1:</strong> Click the map to choose the center of your <b>0.75-mile × 0.75-mile</b> area.<br />
-      <strong>Step 2:</strong> Green = available, Red = already reserved.<br />
-      <strong>Step 3:</strong> Click “Confirm Area” to send it to Thrivehood.
+      <strong>Step 1:</strong> Click the map to choose the center of your 0.75 × 0.75 mile area.<br />
+      <strong>Step 2:</strong> Review any red reserved zones inside your area.<br />
+      <strong>Step 3:</strong> Click “Confirm Area” to continue.
+      <br />
       <button class="btn-confirm" id="confirmBtn">Confirm Area</button>
       <div id="status" style="margin-top:4px; font-size:12px; color:#555;">
         No area selected yet.
@@ -78,7 +70,6 @@
     <!-- Leaflet JS -->
     <script
       src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
       crossorigin=""
     ></script>
 
@@ -89,9 +80,6 @@
       const OUTER_MILES = 0.75;
       const METERS_PER_MILE = 1609.34;
       const OUTER_METERS = OUTER_MILES * METERS_PER_MILE;
-
-      // 0.05 mile cells inside 0.75 mile square => 15 per side
-      const GRID_CELLS_PER_SIDE = 15;
 
       // ============================
       // MAP SETUP
@@ -106,7 +94,7 @@
       const statusEl = document.getElementById("status");
 
       // ============================
-      // RESERVED AREAS (from Wix)
+      // RESERVED AREAS (RED)
       // ============================
       let reservedRects = [];
 
@@ -132,71 +120,28 @@
           );
 
           const rect = L.rectangle(bounds, {
-            color: "#ff0000",
+            color: "#d32f2f",
             weight: 1.5,
-            fillOpacity: 0.1
+            fillColor: "#d32f2f",
+            fillOpacity: 0.25
           }).addTo(map);
 
           reservedRects.push(rect);
         });
       }
 
-      // Helper: check rectangle overlap (axis-aligned)
-      function rectanglesOverlap(a, b) {
-        return (
-          a.south < b.north &&
-          a.north > b.south &&
-          a.west  < b.east &&
-          a.east  > b.west
-        );
-      }
-
-      // Helper: see if candidate bounds overlap ANY reserved rect
-      function isOverlappingReserved(candidateBounds) {
-        for (const rect of reservedRects) {
-          const b = rect.getBounds();
-          const reserved = {
-            south: b.getSouth(),
-            north: b.getNorth(),
-            west:  b.getWest(),
-            east:  b.getEast()
-          };
-
-          if (rectanglesOverlap(candidateBounds, reserved)) {
-            return true;
-          }
-        }
-        return false;
-      }
-
-      // Listen for messages from Wix (reserved zones)
-      window.addEventListener("message", function(event) {
+      window.addEventListener("message", (event) => {
         const data = event.data;
-        if (!data || !data.type) return;
-
-        if (data.type === "THRIVEHOOD_RESERVED_AREAS") {
-          const rectangles = data.rectangles || [];
-          console.log("Received reserved rectangles:", rectangles.length);
-          drawReservedRects(rectangles);
+        if (data?.type === "THRIVEHOOD_RESERVED_AREAS") {
+          drawReservedRects(data.rectangles || []);
         }
       });
 
       // ============================
-      // NEW SELECTION + HIDDEN GRID
+      // SELECTION (GREEN)
       // ============================
-      let selectedBounds = null;  // outer square bounds
-      let outlineRect = null;     // green outline
-      let selectionCells = [];    // 0.05-mile cell rectangles
-
-      function clearSelectionGrid() {
-        if (outlineRect) {
-          map.removeLayer(outlineRect);
-          outlineRect = null;
-        }
-        selectionCells.forEach(cell => map.removeLayer(cell));
-        selectionCells = [];
-        selectedBounds = null;
-      }
+      let selectedBounds = null;
+      let selectionRect = null;
 
       function metersToDegrees(lat, meters) {
         const earthRadius = 6378137;
@@ -207,112 +152,44 @@
         return { dLat, dLng };
       }
 
-      function cellOverlapsReserved(cellBounds) {
-        for (const rect of reservedRects) {
-          const b = rect.getBounds();
-          const reserved = {
-            south: b.getSouth(),
-            north: b.getNorth(),
-            west:  b.getWest(),
-            east:  b.getEast()
-          };
-          if (rectanglesOverlap(cellBounds, reserved)) return true;
-        }
-        return false;
-      }
-
-      function drawSelectionGrid(bounds) {
-        const south = bounds.getSouth();
-        const north = bounds.getNorth();
-        const west  = bounds.getWest();
-        const east  = bounds.getEast();
-
-        const cellHeight = (north - south) / GRID_CELLS_PER_SIDE;
-        const cellWidth  = (east  - west)  / GRID_CELLS_PER_SIDE;
-
-        // Outer outline
-        outlineRect = L.rectangle(
-          [[south, west], [north, east]],
-          { color: "#4c9949", weight: 2.5, fillOpacity: 0 }
-        ).addTo(map);
-
-        for (let row = 0; row < GRID_CELLS_PER_SIDE; row++) {
-          for (let col = 0; col < GRID_CELLS_PER_SIDE; col++) {
-            const cSouth = south + row * cellHeight;
-            const cNorth = cSouth + cellHeight;
-            const cWest  = west  + col * cellWidth;
-            const cEast  = cWest + cellWidth;
-
-            const overlaps = cellOverlapsReserved({
-              south: cSouth, west: cWest, north: cNorth, east: cEast
-            });
-
-            const style = overlaps
-              ? {
-                  color: "#ff0000",
-                  weight: 0.4,
-                  fillColor: "#ff0000",
-                  fillOpacity: 0.3
-                }
-              : {
-                  weight: 0,               // ✅ remove green gridlines
-                  fillColor: "#66bb6a",
-                  fillOpacity: 0.4
-                };
-
-            const cellRect = L.rectangle(
-              [[cSouth, cWest], [cNorth, cEast]],
-              style
-            ).addTo(map);
-
-            selectionCells.push(cellRect);
-          }
-        }
-      }
-
-      map.on("click", function (e) {
+      map.on("click", (e) => {
         const lat = e.latlng.lat;
         const lng = e.latlng.lng;
 
-        // Build the 0.75 × 0.75 mile square around the click
-        const halfOuter = OUTER_METERS / 2;
-        const { dLat, dLng } = metersToDegrees(lat, halfOuter);
+        const half = OUTER_METERS / 2;
+        const { dLat, dLng } = metersToDegrees(lat, half);
 
         const north = lat + dLat;
         const south = lat - dLat;
         const east  = lng + dLng;
         const west  = lng - dLng;
 
-        const candidate = { south, west, north, east };
-
-// ✅ Allow overlap visually (do NOT block). We'll enforce rules later.
-if (isOverlappingReserved(candidate)) {
-  statusEl.textContent =
-    "Note: This area overlaps an existing exclusive zone. Overlapping parts will be unavailable.";
-} else {
-  statusEl.textContent = "Area selected. Click Confirm to save.";
-}
-
-
         const bounds = L.latLngBounds([south, west], [north, east]);
 
-        clearSelectionGrid();
-        drawSelectionGrid(bounds);
+        if (selectionRect) {
+          map.removeLayer(selectionRect);
+        }
+
+        selectionRect = L.rectangle(bounds, {
+          color: "#4c9949",
+          weight: 2.5,
+          fillColor: "#66bb6a",
+          fillOpacity: 0.25
+        }).addTo(map);
 
         selectedBounds = bounds;
         map.fitBounds(bounds, { padding: [20, 20] });
 
         statusEl.textContent =
-          "Area selected (0.75 × 0.75). Click Confirm to save.";
+          "Area selected. Red zones show existing exclusive areas.";
       });
 
-      document.getElementById("confirmBtn").addEventListener("click", function () {
+      document.getElementById("confirmBtn").addEventListener("click", () => {
         if (!selectedBounds) {
-          alert("Please click on the map to select an area first.");
+          alert("Please select an area first.");
           return;
         }
 
-        // Send bounds back to Wix (same message format as before)
         window.parent.postMessage({
           type: "THRIVEHOOD_AREA_SELECTED",
           bounds: {
@@ -326,9 +203,3 @@ if (isOverlappingReserved(candidate)) {
     </script>
   </body>
 </html>
-
-
-
-
-
-
