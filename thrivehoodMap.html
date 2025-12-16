@@ -27,7 +27,7 @@
 
       #map {
         width: 100%;
-        height: 70%; /* adjust if you want more map */
+        height: 70%;
         flex-shrink: 0;
       }
 
@@ -35,7 +35,6 @@
         font-family: inherit;
       }
 
-      /* INFO-BOX IS NOW STATIC, NOT OVERLAYING */
       .info-box {
         position: static;
         width: 100%;
@@ -62,14 +61,14 @@
   </head>
 
   <body>
-
     <!-- MAP FIRST -->
     <div id="map"></div>
 
     <!-- INFO BOX NOW BELOW THE MAP -->
     <div class="info-box">
-      <strong>Step 1:</strong> Click the map to choose the center of your 1-mile x 1-mile area.<br />
-      <strong>Step 2:</strong> Click “Confirm Area” to send it to Thrivehood.
+      <strong>Step 1:</strong> Click the map to choose the center of your <b>0.75-mile × 0.75-mile</b> area.<br />
+      <strong>Step 2:</strong> Green = available, Red = already reserved.<br />
+      <strong>Step 3:</strong> Click “Confirm Area” to send it to Thrivehood.
       <button class="btn-confirm" id="confirmBtn">Confirm Area</button>
       <div id="status" style="margin-top:4px; font-size:12px; color:#555;">
         No area selected yet.
@@ -84,10 +83,19 @@
     ></script>
 
     <script>
-      // Approximate 1 mile in meters
-      const ONE_MILE_METERS = 1609.34;
+      // ============================
+      // CONFIG
+      // ============================
+      const OUTER_MILES = 0.75;
+      const METERS_PER_MILE = 1609.34;
+      const OUTER_METERS = OUTER_MILES * METERS_PER_MILE;
 
-      // Initialize the map
+      // 0.05 mile cells inside 0.75 mile square => 15 per side
+      const GRID_CELLS_PER_SIDE = 15;
+
+      // ============================
+      // MAP SETUP
+      // ============================
       const map = L.map("map").setView([39.9784, -86.1180], 13);
 
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -97,8 +105,10 @@
 
       const statusEl = document.getElementById("status");
 
-      // ---------- RESERVED AREAS (from Wix) ----------
-      let reservedRects = []; // will hold Leaflet rectangles
+      // ============================
+      // RESERVED AREAS (from Wix)
+      // ============================
+      let reservedRects = [];
 
       function clearReservedRects() {
         reservedRects.forEach(r => map.removeLayer(r));
@@ -114,9 +124,7 @@
             typeof r.north !== "number" ||
             typeof r.west  !== "number" ||
             typeof r.east  !== "number"
-          ) {
-            return;
-          }
+          ) return;
 
           const bounds = L.latLngBounds(
             [r.south, r.west],
@@ -135,7 +143,6 @@
 
       // Helper: check rectangle overlap (axis-aligned)
       function rectanglesOverlap(a, b) {
-        // a and b are objects with south, north, west, east
         return (
           a.south < b.north &&
           a.north > b.south &&
@@ -174,9 +181,22 @@
         }
       });
 
-      // ---------- NEW TEEN'S SELECTED AREA ----------
-      let selectedRect = null;
-      let selectedBounds = null;
+      // ============================
+      // NEW SELECTION + HIDDEN GRID
+      // ============================
+      let selectedBounds = null;  // outer square bounds
+      let outlineRect = null;     // green outline
+      let selectionCells = [];    // 0.05-mile cell rectangles
+
+      function clearSelectionGrid() {
+        if (outlineRect) {
+          map.removeLayer(outlineRect);
+          outlineRect = null;
+        }
+        selectionCells.forEach(cell => map.removeLayer(cell));
+        selectionCells = [];
+        selectedBounds = null;
+      }
 
       function metersToDegrees(lat, meters) {
         const earthRadius = 6378137;
@@ -187,12 +207,76 @@
         return { dLat, dLng };
       }
 
+      function cellOverlapsReserved(cellBounds) {
+        for (const rect of reservedRects) {
+          const b = rect.getBounds();
+          const reserved = {
+            south: b.getSouth(),
+            north: b.getNorth(),
+            west:  b.getWest(),
+            east:  b.getEast()
+          };
+          if (rectanglesOverlap(cellBounds, reserved)) return true;
+        }
+        return false;
+      }
+
+      function drawSelectionGrid(bounds) {
+        const south = bounds.getSouth();
+        const north = bounds.getNorth();
+        const west  = bounds.getWest();
+        const east  = bounds.getEast();
+
+        const cellHeight = (north - south) / GRID_CELLS_PER_SIDE;
+        const cellWidth  = (east  - west)  / GRID_CELLS_PER_SIDE;
+
+        // Outer outline
+        outlineRect = L.rectangle(
+          [[south, west], [north, east]],
+          { color: "#4c9949", weight: 2.5, fillOpacity: 0 }
+        ).addTo(map);
+
+        for (let row = 0; row < GRID_CELLS_PER_SIDE; row++) {
+          for (let col = 0; col < GRID_CELLS_PER_SIDE; col++) {
+            const cSouth = south + row * cellHeight;
+            const cNorth = cSouth + cellHeight;
+            const cWest  = west  + col * cellWidth;
+            const cEast  = cWest + cellWidth;
+
+            const overlaps = cellOverlapsReserved({
+              south: cSouth, west: cWest, north: cNorth, east: cEast
+            });
+
+            const style = overlaps
+              ? {
+                  color: "#ff0000",
+                  weight: 0.4,
+                  fillColor: "#ff0000",
+                  fillOpacity: 0.3
+                }
+              : {
+                  weight: 0,               // ✅ remove green gridlines
+                  fillColor: "#66bb6a",
+                  fillOpacity: 0.4
+                };
+
+            const cellRect = L.rectangle(
+              [[cSouth, cWest], [cNorth, cEast]],
+              style
+            ).addTo(map);
+
+            selectionCells.push(cellRect);
+          }
+        }
+      }
+
       map.on("click", function (e) {
         const lat = e.latlng.lat;
         const lng = e.latlng.lng;
 
-        const halfMile = ONE_MILE_METERS / 2;
-        const { dLat, dLng } = metersToDegrees(lat, halfMile);
+        // Build the 0.75 × 0.75 mile square around the click
+        const halfOuter = OUTER_METERS / 2;
+        const { dLat, dLng } = metersToDegrees(lat, halfOuter);
 
         const north = lat + dLat;
         const south = lat - dLat;
@@ -201,29 +285,23 @@
 
         const candidate = { south, west, north, east };
 
-        // 🔴 NEW: block selection if it overlaps any reserved area
+        // Keep your current production rule: block if it overlaps an existing exclusive zone
         if (isOverlappingReserved(candidate)) {
           statusEl.textContent =
-            "That 1-mile area overlaps an existing exclusive zone. Please choose another location.";
+            "That area overlaps an existing exclusive zone. Please choose another location.";
           return;
         }
 
         const bounds = L.latLngBounds([south, west], [north, east]);
 
-        if (selectedRect) {
-          map.removeLayer(selectedRect);
-        }
-
-        selectedRect = L.rectangle(bounds, {
-          color: "#4c9949",
-          weight: 2,
-          fillOpacity: 0.15
-        }).addTo(map);
+        clearSelectionGrid();
+        drawSelectionGrid(bounds);
 
         selectedBounds = bounds;
         map.fitBounds(bounds, { padding: [20, 20] });
 
-        statusEl.textContent = "Area selected. Click Confirm to save.";
+        statusEl.textContent =
+          "Area selected (0.75 × 0.75). Click Confirm to save.";
       });
 
       document.getElementById("confirmBtn").addEventListener("click", function () {
@@ -232,21 +310,21 @@
           return;
         }
 
-        const data = {
+        // Send bounds back to Wix (same message format as before)
+        window.parent.postMessage({
           type: "THRIVEHOOD_AREA_SELECTED",
           bounds: {
             southWest: selectedBounds.getSouthWest(),
             northEast: selectedBounds.getNorthEast()
           }
-        };
-
-        window.parent.postMessage(data, "*");
+        }, "*");
 
         statusEl.textContent = "Area sent to Thrivehood!";
       });
     </script>
   </body>
 </html>
+
 
 
 
