@@ -4,7 +4,6 @@
     <meta charset="utf-8" />
     <title>Thrivehood Area Selector</title>
 
-    <!-- Leaflet CSS -->
     <link
       rel="stylesheet"
       href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
@@ -12,55 +11,41 @@
     />
 
     <style>
-      html, body {
-        margin: 0;
-        padding: 0;
-        height: 100%;
-      }
-
+      html, body { margin:0; padding:0; height:100%; }
       body {
-        display: flex;
-        flex-direction: column;
-        height: 100%;
-        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        display:flex;
+        flex-direction:column;
+        height:100%;
+        font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
       }
-
-      #map {
-        width: 100%;
-        height: 70%;
-        flex-shrink: 0;
-      }
+      #map { width:100%; height:70%; flex-shrink:0; }
 
       .info-box {
-        width: 100%;
-        background: rgba(255,255,255,0.95);
-        padding: 10px 12px;
-        font-size: 14px;
-        line-height: 1.4;
-        border-top: 1px solid #ddd;
-        box-sizing: border-box;
+        width:100%;
+        background:rgba(255,255,255,0.95);
+        padding:10px 12px;
+        font-size:14px;
+        line-height:1.4;
+        border-top:1px solid #ddd;
+        box-sizing:border-box;
       }
-
       .btn-confirm {
-        display: inline-block;
-        margin-top: 6px;
-        padding: 6px 12px;
-        border-radius: 999px;
-        border: none;
-        background: #4c9949;
-        color: #fff;
-        font-size: 13px;
-        cursor: pointer;
+        display:inline-block;
+        margin-top:6px;
+        padding:6px 12px;
+        border-radius:999px;
+        border:none;
+        background:#4c9949;
+        color:#fff;
+        font-size:13px;
+        cursor:pointer;
       }
     </style>
   </head>
 
   <body>
-
-    <!-- MAP -->
     <div id="map"></div>
 
-    <!-- INFO -->
     <div class="info-box">
       <strong>Step 1:</strong> Click the map to choose the center of your 0.75-mile × 0.75-mile area.<br />
       <strong>Step 2:</strong> Click “Confirm Area” to continue.
@@ -71,22 +56,15 @@
       </div>
     </div>
 
-    <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <script>
-      // ============================
-      // CONSTANTS
-      // ============================
       const METERS_PER_MILE = 1609.34;
       const SELECTION_SIZE_MILES = 0.75;
       const SELECTION_METERS = SELECTION_SIZE_MILES * METERS_PER_MILE;
 
       const statusEl = document.getElementById("status");
 
-      // ============================
-      // MAP SETUP
-      // ============================
       const map = L.map("map").setView([39.9784, -86.1180], 13);
 
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -94,9 +72,7 @@
         attribution: "&copy; OpenStreetMap contributors"
       }).addTo(map);
 
-      // ============================
-      // CLAIMED AREAS LAYER (MERGED RECTS)
-      // ============================
+      // ----- claimed rects layer (merged rects from ServiceAreaCells) -----
       const claimedLayer = L.featureGroup().addTo(map);
 
       function renderClaimedRects(rects) {
@@ -110,10 +86,7 @@
             typeof r.east  !== "number"
           ) return;
 
-          const bounds = L.latLngBounds(
-            [r.south, r.west],
-            [r.north, r.east]
-          );
+          const bounds = L.latLngBounds([r.south, r.west], [r.north, r.east]);
 
           L.rectangle(bounds, {
             color: "#cc0000",
@@ -126,14 +99,11 @@
         statusEl.textContent = `Claimed areas shown: ${(rects || []).length}`;
       }
 
-      // ============================
-      // VIEWPORT → WIX (debounced)
-      // ============================
+      // ----- viewport messaging (debounced) -----
       let viewportTimer = null;
 
       function sendViewportBounds() {
         const b = map.getBounds();
-
         window.parent.postMessage({
           type: "THRIVEHOOD_VIEWPORT_BOUNDS",
           bounds: {
@@ -153,10 +123,8 @@
       map.whenReady(requestViewportUpdate);
       map.on("moveend zoomend", requestViewportUpdate);
 
-      // ============================
-      // RECEIVE FROM WIX
-      // ============================
-      window.addEventListener("message", function (event) {
+      // ----- receive claimed rects from Wix -----
+      window.addEventListener("message", function(event) {
         const data = event.data;
         if (!data || !data.type) return;
 
@@ -165,18 +133,14 @@
         }
       });
 
-      // ============================
-      // USER SELECTION (0.75 × 0.75)
-      // ============================
+      // ----- selection (0.75 x 0.75) -----
       let selectedRect = null;
       let selectedBounds = null;
 
       function metersToDegrees(lat, meters) {
         const earthRadius = 6378137;
         const dLat = (meters / earthRadius) * (180 / Math.PI);
-        const dLng =
-          (meters / (earthRadius * Math.cos((Math.PI * lat / 180)))) *
-          (180 / Math.PI);
+        const dLng = (meters / (earthRadius * Math.cos((Math.PI * lat / 180)))) * (180 / Math.PI);
         return { dLat, dLng };
       }
 
@@ -225,5 +189,6 @@
     </script>
   </body>
 </html>
+
 
 
