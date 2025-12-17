@@ -4,19 +4,15 @@
     <meta charset="utf-8" />
     <title>Thrivehood Area Selector</title>
 
-    <!-- Leaflet CSS -->
     <link
       rel="stylesheet"
       href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
       crossorigin=""
     />
 
     <style>
-      html, body {
-        margin: 0;
-        padding: 0;
-        height: 100%;
-      }
+      html, body { margin: 0; padding: 0; height: 100%; }
 
       body {
         display: flex;
@@ -25,21 +21,22 @@
         font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       }
 
-      #map {
-        width: 100%;
-        height: 70%;
-        flex-shrink: 0;
-      }
+      #map { width: 100%; height: 70%; flex-shrink: 0; }
+      .leaflet-control { font-family: inherit; }
 
       .info-box {
+        position: static;
+        width: 100%;
         background: rgba(255,255,255,0.95);
         padding: 10px 12px;
         font-size: 14px;
         line-height: 1.4;
+        box-sizing: border-box;
         border-top: 1px solid #ddd;
       }
 
       .btn-confirm {
+        display: inline-block;
         margin-top: 6px;
         padding: 6px 12px;
         border-radius: 999px;
@@ -53,33 +50,32 @@
   </head>
 
   <body>
-
     <div id="map"></div>
 
     <div class="info-box">
-      <strong>Step 1:</strong> Click the map to choose the center of your 0.75 × 0.75 mile area.<br />
-      <strong>Step 2:</strong> Review any red reserved zones inside your area.<br />
-      <strong>Step 3:</strong> Click “Confirm Area” to continue.
-      <br />
+      <strong>Step 1:</strong> Click the map to choose the center of your 0.75-mile x 0.75-mile area.<br />
+      <strong>Step 2:</strong> Click “Confirm Area” to send it to Thrivehood.
       <button class="btn-confirm" id="confirmBtn">Confirm Area</button>
       <div id="status" style="margin-top:4px; font-size:12px; color:#555;">
         No area selected yet.
       </div>
     </div>
 
-    <!-- Leaflet JS -->
     <script
       src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
       crossorigin=""
     ></script>
 
     <script>
       // ============================
-      // CONFIG
+      // CONSTANTS
       // ============================
-      const OUTER_MILES = 0.75;
       const METERS_PER_MILE = 1609.34;
-      const OUTER_METERS = OUTER_MILES * METERS_PER_MILE;
+      const SELECTION_SIZE_MILES = 0.75;
+      const SELECTION_METERS = SELECTION_SIZE_MILES * METERS_PER_MILE;
+
+      const statusEl = document.getElementById("status");
 
       // ============================
       // MAP SETUP
@@ -91,57 +87,74 @@
         attribution: "&copy; OpenStreetMap contributors"
       }).addTo(map);
 
-      const statusEl = document.getElementById("status");
-
       // ============================
-      // RESERVED AREAS (RED)
+      // CLAIMED CELLS (from ServiceAreaCells via Wix)
       // ============================
-      let reservedRects = [];
+      let claimedLayer = L.featureGroup().addTo(map);
 
-      function clearReservedRects() {
-        reservedRects.forEach(r => map.removeLayer(r));
-        reservedRects = [];
+      function clearClaimedCells() {
+        claimedLayer.clearLayers();
       }
 
-      function drawReservedRects(rectangles) {
-        clearReservedRects();
+      function drawClaimedCells(cells) {
+        clearClaimedCells();
 
-        rectangles.forEach(r => {
+        // Draw each claimed cell as a lightweight rectangle
+        (cells || []).forEach(c => {
           if (
-            typeof r.south !== "number" ||
-            typeof r.north !== "number" ||
-            typeof r.west  !== "number" ||
-            typeof r.east  !== "number"
+            typeof c.south !== "number" ||
+            typeof c.north !== "number" ||
+            typeof c.west  !== "number" ||
+            typeof c.east  !== "number"
           ) return;
 
-          const bounds = L.latLngBounds(
-            [r.south, r.west],
-            [r.north, r.east]
-          );
+          const bounds = L.latLngBounds([c.south, c.west], [c.north, c.east]);
 
-          const rect = L.rectangle(bounds, {
-            color: "#d32f2f",
-            weight: 1.5,
-            fillColor: "#d32f2f",
-            fillOpacity: 0.25
-          }).addTo(map);
-
-          reservedRects.push(rect);
+          L.rectangle(bounds, {
+            color: "#ff0000",
+            weight: 0.2,
+            fillColor: "#ff0000",
+            fillOpacity: 0.18
+          }).addTo(claimedLayer);
         });
       }
 
-      window.addEventListener("message", (event) => {
+      // Receive claimed cells back from Wix
+      window.addEventListener("message", function(event) {
         const data = event.data;
-        if (data?.type === "THRIVEHOOD_RESERVED_AREAS") {
-          drawReservedRects(data.rectangles || []);
+        if (!data || !data.type) return;
+
+        if (data.type === "THRIVEHOOD_CLAIMED_CELLS") {
+          const cells = data.cells || [];
+          console.log("Received claimed cells:", cells.length);
+          drawClaimedCells(cells);
         }
       });
 
+      // Ask Wix for claimed cells in the current viewport
+      function requestClaimedCellsForViewport() {
+        const b = map.getBounds();
+        const payload = {
+          type: "THRIVEHOOD_REQUEST_CLAIMED_CELLS",
+          bounds: {
+            south: b.getSouth(),
+            west:  b.getWest(),
+            north: b.getNorth(),
+            east:  b.getEast()
+          }
+        };
+        window.parent.postMessage(payload, "*");
+      }
+
+      // Request on load + when user pans/zooms
+      map.whenReady(() => requestClaimedCellsForViewport());
+      map.on("moveend", () => requestClaimedCellsForViewport());
+
       // ============================
-      // SELECTION (GREEN)
+      // NEW TEEN'S SELECTED AREA (0.75 x 0.75)
       // ============================
+      let selectedRect = null;
       let selectedBounds = null;
-      let selectionRect = null;
 
       function metersToDegrees(lat, meters) {
         const earthRadius = 6378137;
@@ -152,11 +165,11 @@
         return { dLat, dLng };
       }
 
-      map.on("click", (e) => {
+      map.on("click", function (e) {
         const lat = e.latlng.lat;
         const lng = e.latlng.lng;
 
-        const half = OUTER_METERS / 2;
+        const half = SELECTION_METERS / 2;
         const { dLat, dLng } = metersToDegrees(lat, half);
 
         const north = lat + dLat;
@@ -166,38 +179,33 @@
 
         const bounds = L.latLngBounds([south, west], [north, east]);
 
-        if (selectionRect) {
-          map.removeLayer(selectionRect);
-        }
+        if (selectedRect) map.removeLayer(selectedRect);
 
-        selectionRect = L.rectangle(bounds, {
+        selectedRect = L.rectangle(bounds, {
           color: "#4c9949",
-          weight: 2.5,
-          fillColor: "#66bb6a",
-          fillOpacity: 0.25
+          weight: 2,
+          fillOpacity: 0.12
         }).addTo(map);
 
         selectedBounds = bounds;
-        map.fitBounds(bounds, { padding: [20, 20] });
-
-        statusEl.textContent =
-          "Area selected. Red zones show existing exclusive areas.";
+        statusEl.textContent = "Area selected. Click Confirm to save.";
       });
 
-      document.getElementById("confirmBtn").addEventListener("click", () => {
+      document.getElementById("confirmBtn").addEventListener("click", function () {
         if (!selectedBounds) {
-          alert("Please select an area first.");
+          alert("Please click on the map to select an area first.");
           return;
         }
 
-        window.parent.postMessage({
+        const data = {
           type: "THRIVEHOOD_AREA_SELECTED",
           bounds: {
             southWest: selectedBounds.getSouthWest(),
             northEast: selectedBounds.getNorthEast()
           }
-        }, "*");
+        };
 
+        window.parent.postMessage(data, "*");
         statusEl.textContent = "Area sent to Thrivehood!";
       });
     </script>
