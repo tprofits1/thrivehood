@@ -132,19 +132,16 @@
       }
 
       map.whenReady(() => {
-        // immediate request so claimed areas load on first paint
-        sendViewportBounds();
+        sendViewportBounds(); // immediate request so claimed areas load on first paint
       });
 
       map.on("moveend zoomend", requestViewportUpdate);
 
-      // Clean up timers if the iframe gets torn down/reloaded
       window.addEventListener("beforeunload", () => {
         if (viewportTimer) clearTimeout(viewportTimer);
         viewportTimer = null;
       });
 
-      // Receive claimed rects from Wix
       window.addEventListener("message", function(event) {
         const data = event.data;
         if (!data || !data.type) return;
@@ -202,7 +199,7 @@
 
         selectedBounds = bounds;
 
-        // ✅ NEW: send a PREVIEW message so the parent page always has fresh areaData
+        // preview message keeps parent areaData fresh even if user forgets confirm
         postAreaMessage("THRIVEHOOD_AREA_PREVIEW");
 
         statusEl.textContent = "Area selected. Click Confirm to continue.";
@@ -214,14 +211,13 @@
           return;
         }
 
-        // ✅ Existing behavior: confirm selection
         postAreaMessage("THRIVEHOOD_AREA_SELECTED");
-
         statusEl.textContent = "Area sent to Thrivehood!";
       });
     </script>
   </body>
 </html>
+
 
 
 
