@@ -12,15 +12,15 @@
 
     <style>
       html, body { margin:0; padding:0; height:100%; }
-      body {
+      body{
         display:flex;
         flex-direction:column;
         height:100%;
         font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
       }
-      #map { width:100%; height:70%; flex-shrink:0; }
+      #map{ width:100%; height:70%; flex-shrink:0; }
 
-      .info-box {
+      .info-box{
         width:100%;
         background:rgba(255,255,255,0.95);
         padding:10px 12px;
@@ -29,7 +29,7 @@
         border-top:1px solid #ddd;
         box-sizing:border-box;
       }
-      .btn-confirm {
+      .btn-confirm{
         display:inline-block;
         margin-top:6px;
         padding:6px 12px;
@@ -59,12 +59,18 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <script>
+      // =====================================================
+      // CONSTANTS
+      // =====================================================
       const METERS_PER_MILE = 1609.34;
       const SELECTION_SIZE_MILES = 0.75;
       const SELECTION_METERS = SELECTION_SIZE_MILES * METERS_PER_MILE;
 
       const statusEl = document.getElementById("status");
 
+      // =====================================================
+      // MAP SETUP
+      // =====================================================
       const map = L.map("map").setView([39.9784, -86.1180], 13);
 
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -72,7 +78,9 @@
         attribution: "&copy; OpenStreetMap contributors"
       }).addTo(map);
 
-      // ----- claimed rects layer -----
+      // =====================================================
+      // CLAIMED RECTS LAYER (from Wix)
+      // =====================================================
       const claimedLayer = L.featureGroup().addTo(map);
 
       function renderClaimedRects(rects) {
@@ -99,11 +107,14 @@
         statusEl.textContent = `Claimed areas shown: ${(rects || []).length}`;
       }
 
-      // ----- send viewport bounds (debounced for move/zoom; immediate on load) -----
+      // =====================================================
+      // VIEWPORT -> WIX MESSAGING (debounced + cleanup)
+      // =====================================================
       let viewportTimer = null;
 
       function sendViewportBounds() {
         const b = map.getBounds();
+
         window.parent.postMessage({
           type: "THRIVEHOOD_VIEWPORT_BOUNDS",
           bounds: {
@@ -121,13 +132,19 @@
       }
 
       map.whenReady(() => {
-        // IMPORTANT: immediate request so you always load claimed areas on first paint
+        // immediate request so claimed areas load on first paint
         sendViewportBounds();
       });
 
       map.on("moveend zoomend", requestViewportUpdate);
 
-      // ----- receive claimed rects -----
+      // Clean up timers if the iframe gets torn down/reloaded
+      window.addEventListener("beforeunload", () => {
+        if (viewportTimer) clearTimeout(viewportTimer);
+        viewportTimer = null;
+      });
+
+      // Receive claimed rects from Wix
       window.addEventListener("message", function(event) {
         const data = event.data;
         if (!data || !data.type) return;
@@ -137,7 +154,9 @@
         }
       });
 
-      // ----- selection (0.75 x 0.75) -----
+      // =====================================================
+      // SELECTION (0.75 x 0.75) + PREVIEW MESSAGE
+      // =====================================================
       let selectedRect = null;
       let selectedBounds = null;
 
@@ -146,6 +165,17 @@
         const dLat = (meters / earthRadius) * (180 / Math.PI);
         const dLng = (meters / (earthRadius * Math.cos((Math.PI * lat / 180)))) * (180 / Math.PI);
         return { dLat, dLng };
+      }
+
+      function postAreaMessage(type) {
+        if (!selectedBounds) return;
+        window.parent.postMessage({
+          type,
+          bounds: {
+            southWest: selectedBounds.getSouthWest(),
+            northEast: selectedBounds.getNorthEast()
+          }
+        }, "*");
       }
 
       map.on("click", function (e) {
@@ -171,6 +201,10 @@
         }).addTo(map);
 
         selectedBounds = bounds;
+
+        // ✅ NEW: send a PREVIEW message so the parent page always has fresh areaData
+        postAreaMessage("THRIVEHOOD_AREA_PREVIEW");
+
         statusEl.textContent = "Area selected. Click Confirm to continue.";
       });
 
@@ -180,19 +214,15 @@
           return;
         }
 
-        window.parent.postMessage({
-          type: "THRIVEHOOD_AREA_SELECTED",
-          bounds: {
-            southWest: selectedBounds.getSouthWest(),
-            northEast: selectedBounds.getNorthEast()
-          }
-        }, "*");
+        // ✅ Existing behavior: confirm selection
+        postAreaMessage("THRIVEHOOD_AREA_SELECTED");
 
         statusEl.textContent = "Area sent to Thrivehood!";
       });
     </script>
   </body>
 </html>
+
 
 
 
