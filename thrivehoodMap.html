@@ -72,7 +72,7 @@
         attribution: "&copy; OpenStreetMap contributors"
       }).addTo(map);
 
-      // ----- claimed rects layer (merged rects from ServiceAreaCells) -----
+      // ----- claimed rects layer -----
       const claimedLayer = L.featureGroup().addTo(map);
 
       function renderClaimedRects(rects) {
@@ -99,7 +99,7 @@
         statusEl.textContent = `Claimed areas shown: ${(rects || []).length}`;
       }
 
-      // ----- viewport messaging (debounced) -----
+      // ----- send viewport bounds (debounced for move/zoom; immediate on load) -----
       let viewportTimer = null;
 
       function sendViewportBounds() {
@@ -117,13 +117,17 @@
 
       function requestViewportUpdate() {
         if (viewportTimer) clearTimeout(viewportTimer);
-        viewportTimer = setTimeout(sendViewportBounds, 300);
+        viewportTimer = setTimeout(sendViewportBounds, 250);
       }
 
-      map.whenReady(requestViewportUpdate);
+      map.whenReady(() => {
+        // IMPORTANT: immediate request so you always load claimed areas on first paint
+        sendViewportBounds();
+      });
+
       map.on("moveend zoomend", requestViewportUpdate);
 
-      // ----- receive claimed rects from Wix -----
+      // ----- receive claimed rects -----
       window.addEventListener("message", function(event) {
         const data = event.data;
         if (!data || !data.type) return;
@@ -189,6 +193,7 @@
     </script>
   </body>
 </html>
+
 
 
 
