@@ -12,13 +12,20 @@
 
     <style>
       html, body { margin:0; padding:0; height:100%; }
+
       body{
         display:flex;
         flex-direction:column;
         height:100%;
         font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
       }
-      #map{ width:100%; height:70%; flex-shrink:0; }
+
+      /* CRITICAL: Wix sometimes gives the iframe a height but Leaflet initializes before it settles */
+      #map{
+        width:100%;
+        flex: 1 1 auto;        /* use remaining height */
+        min-height: 420px;     /* CRITICAL: prevents “gray map” / partial tiles */
+      }
 
       .info-box{
         width:100%;
@@ -28,7 +35,9 @@
         line-height:1.4;
         border-top:1px solid #ddd;
         box-sizing:border-box;
+        flex: 0 0 auto;
       }
+
       .btn-confirm{
         display:inline-block;
         margin-top:6px;
@@ -69,14 +78,40 @@
       const statusEl = document.getElementById("status");
 
       // =====================================================
+      // WIX/RESPONSIVE FIX: force Leaflet to recalc size
+      // =====================================================
+      function fixLeafletResize(map) {
+        // Wix often resizes the iframe several times after load
+        [50, 150, 300, 600, 1000, 1600].forEach(ms => {
+          setTimeout(() => map.invalidateSize(true), ms);
+        });
+
+        // Also try when window size changes (desktop/mobile rotate)
+        window.addEventListener("resize", () => {
+          map.invalidateSize(true);
+        });
+      }
+
+      // =====================================================
       // MAP SETUP
       // =====================================================
-      const map = L.map("map").setView([39.9784, -86.1180], 13);
+      const map = L.map("map", {
+        zoomControl: true,
+        preferCanvas: true
+      }).setView([39.9784, -86.1180], 13);
 
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      const tiles = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         maxZoom: 19,
         attribution: "&copy; OpenStreetMap contributors"
       }).addTo(map);
+
+      // When tiles load, invalidate again (helps with partial-render cases)
+      tiles.on("load", () => {
+        map.invalidateSize(true);
+      });
+
+      // Kick the resize fix
+      fixLeafletResize(map);
 
       // =====================================================
       // CLAIMED RECTS LAYER (from Wix)
@@ -132,6 +167,8 @@
       }
 
       map.whenReady(() => {
+        // Ensure Leaflet knows its final size before first viewport request
+        map.invalidateSize(true);
         sendViewportBounds(); // immediate request so claimed areas load on first paint
       });
 
@@ -217,6 +254,7 @@
     </script>
   </body>
 </html>
+
 
 
 
