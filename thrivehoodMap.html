@@ -20,11 +20,10 @@
         font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
       }
 
-      /* CRITICAL: Wix sometimes gives the iframe a height but Leaflet initializes before it settles */
       #map{
         width:100%;
-        flex: 1 1 auto;        /* use remaining height */
-        min-height: 420px;     /* CRITICAL: prevents “gray map” / partial tiles */
+        flex: 1 1 auto;
+        min-height: 420px;
       }
 
       .info-box{
@@ -81,12 +80,10 @@
       // WIX/RESPONSIVE FIX: force Leaflet to recalc size
       // =====================================================
       function fixLeafletResize(map) {
-        // Wix often resizes the iframe several times after load
         [50, 150, 300, 600, 1000, 1600].forEach(ms => {
           setTimeout(() => map.invalidateSize(true), ms);
         });
 
-        // Also try when window size changes (desktop/mobile rotate)
         window.addEventListener("resize", () => {
           map.invalidateSize(true);
         });
@@ -105,12 +102,10 @@
         attribution: "&copy; OpenStreetMap contributors"
       }).addTo(map);
 
-      // When tiles load, invalidate again (helps with partial-render cases)
       tiles.on("load", () => {
         map.invalidateSize(true);
       });
 
-      // Kick the resize fix
       fixLeafletResize(map);
 
       // =====================================================
@@ -143,13 +138,12 @@
       }
 
       // =====================================================
-      // VIEWPORT -> WIX MESSAGING (debounced + cleanup)
+      // VIEWPORT -> WIX MESSAGING (debounced)
       // =====================================================
       let viewportTimer = null;
 
       function sendViewportBounds() {
         const b = map.getBounds();
-
         window.parent.postMessage({
           type: "THRIVEHOOD_VIEWPORT_BOUNDS",
           bounds: {
@@ -167,9 +161,8 @@
       }
 
       map.whenReady(() => {
-        // Ensure Leaflet knows its final size before first viewport request
         map.invalidateSize(true);
-        sendViewportBounds(); // immediate request so claimed areas load on first paint
+        sendViewportBounds();
       });
 
       map.on("moveend zoomend", requestViewportUpdate);
@@ -189,10 +182,11 @@
       });
 
       // =====================================================
-      // SELECTION (0.75 x 0.75) + PREVIEW MESSAGE
+      // SELECTION (0.75 x 0.75) + MESSAGES
       // =====================================================
       let selectedRect = null;
       let selectedBounds = null;
+      let selectedCenter = null; // {lat,lng}
 
       function metersToDegrees(lat, meters) {
         const earthRadius = 6378137;
@@ -201,10 +195,52 @@
         return { dLat, dLng };
       }
 
-      function postAreaMessage(type) {
-        if (!selectedBounds) return;
+      function buildAreaDataFromBounds(bounds, centerLat, centerLng) {
+        const sw = bounds.getSouthWest();
+        const ne = bounds.getNorthEast();
+        const radiusMiles = 0.75; // used by parent summary fields
+        const adGeoString = `${centerLat.toFixed(5)},${centerLng.toFixed(5)},${radiusMiles}mi`;
+
+        return {
+          south: sw.lat,
+          west:  sw.lng,
+          north: ne.lat,
+          east:  ne.lng,
+          centerLat,
+          centerLng,
+          radiusMiles,
+          adGeoString
+        };
+      }
+
+      function postPreviewMessage() {
+        if (!selectedBounds || !selectedCenter) return;
+
+        // IMPORTANT:
+        // Parent (/services) expects preview as THRIVEHOOD_AREA_SELECTED
         window.parent.postMessage({
-          type,
+          type: "THRIVEHOOD_AREA_SELECTED",
+          bounds: {
+            southWest: selectedBounds.getSouthWest(),
+            northEast: selectedBounds.getNorthEast()
+          }
+        }, "*");
+      }
+
+      function postConfirmedMessage() {
+        if (!selectedBounds || !selectedCenter) return;
+
+        const areaData = buildAreaDataFromBounds(
+          selectedBounds,
+          selectedCenter.lat,
+          selectedCenter.lng
+        );
+
+        // IMPORTANT:
+        // Parent (/services) expects confirm as THRIVEHOOD_AREA_CONFIRMED
+        window.parent.postMessage({
+          type: "THRIVEHOOD_AREA_CONFIRMED",
+          areaData,
           bounds: {
             southWest: selectedBounds.getSouthWest(),
             northEast: selectedBounds.getNorthEast()
@@ -215,6 +251,7 @@
       map.on("click", function (e) {
         const lat = e.latlng.lat;
         const lng = e.latlng.lng;
+        selectedCenter = { lat, lng };
 
         const half = SELECTION_METERS / 2;
         const { dLat, dLng } = metersToDegrees(lat, half);
@@ -236,20 +273,20 @@
 
         selectedBounds = bounds;
 
-        // preview message keeps parent areaData fresh even if user forgets confirm
-        postAreaMessage("THRIVEHOOD_AREA_PREVIEW");
+        // Preview message (keeps parent fresh even if user forgets confirm)
+        postPreviewMessage();
 
         statusEl.textContent = "Area selected. Click Confirm to continue.";
       });
 
       document.getElementById("confirmBtn").addEventListener("click", function () {
-        if (!selectedBounds) {
+        if (!selectedBounds || !selectedCenter) {
           alert("Please click on the map to select an area first.");
           return;
         }
 
-        postAreaMessage("THRIVEHOOD_AREA_SELECTED");
-        statusEl.textContent = "Area sent to Thrivehood!";
+        postConfirmedMessage();
+        statusEl.textContent = "Area confirmed and sent to Thrivehood!";
       });
     </script>
   </body>
