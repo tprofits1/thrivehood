@@ -1,8 +1,10 @@
 <!-- ==========================================
      thrivehoodDashboardMap.html  (GitHub Pages)
-     READ-ONLY map for /dashboard
+     READ-ONLY dashboard map (no clicking, no confirm)
      Draws a RED rectangle from URL params:
        ?south=..&west=..&north=..&east=..&color=%23cc0000
+     Includes a debug tooltip on the banner showing
+     raw query string + parsed values.
      ========================================== -->
 <!DOCTYPE html>
 <html>
@@ -19,11 +21,13 @@
 
   <style>
     html, body { margin:0; padding:0; height:100%; width:100%; }
+    body { position:relative; }
     #map { height:100%; width:100%; }
     #banner{
       position:absolute; top:10px; left:10px; z-index:9999;
       padding:8px 10px; border-radius:10px; font:13px system-ui;
       color:#fff; background:#b00020; box-shadow:0 4px 10px rgba(0,0,0,.2);
+      user-select:none;
     }
   </style>
 </head>
@@ -40,19 +44,24 @@
     function qNum(name) {
       const v = new URLSearchParams(location.search).get(name);
       if (v === null || v === "") return null;
-      const n = Number(v);
+
+      // tolerate whitespace/commas just in case
+      const cleaned = v.trim().replace(/,/g, "");
+      const n = Number(cleaned);
       return Number.isFinite(n) ? n : null;
     }
+
+    const raw = location.search;
 
     const south = qNum("south");
     const west  = qNum("west");
     const north = qNum("north");
     const east  = qNum("east");
 
-    // color can be "red" or "%23cc0000" (preferred)
-    const color = new URLSearchParams(location.search).get("color") || "#cc0000";
+    const colorParam = new URLSearchParams(location.search).get("color");
+    const color = colorParam ? decodeURIComponent(colorParam) : "#cc0000";
 
-    // Create base map (Carmel fallback)
+    // Base map (Carmel fallback)
     const map = L.map("map", { zoomControl: true }).setView([39.9784, -86.1180], 12);
 
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -64,9 +73,20 @@
 
     if (!hasBounds) {
       banner.textContent = "MISSING BOUNDS ❌";
+      banner.title =
+        `raw=${raw}\n` +
+        `south=${south} west=${west}\n` +
+        `north=${north} east=${east}\n` +
+        `color=${color}`;
+      console.log("MISSING BOUNDS", { raw, south, west, north, east, color });
     } else {
       banner.style.background = "#0b6b0b";
       banner.textContent = "ZONE LOADED ✅";
+      banner.title =
+        `raw=${raw}\n` +
+        `south=${south} west=${west}\n` +
+        `north=${north} east=${east}\n` +
+        `color=${color}`;
 
       const bounds = L.latLngBounds([south, west], [north, east]);
 
