@@ -1,0 +1,84 @@
+<!-- ==========================================
+     thrivehoodDashboardMap.html  (GitHub Pages)
+     READ-ONLY map for /dashboard
+     Draws a RED rectangle from URL params:
+       ?south=..&west=..&north=..&east=..&color=%23cc0000
+     ========================================== -->
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Thrivehood Dashboard Zone Map</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    crossorigin=""
+  />
+
+  <style>
+    html, body { margin:0; padding:0; height:100%; width:100%; }
+    #map { height:100%; width:100%; }
+    #banner{
+      position:absolute; top:10px; left:10px; z-index:9999;
+      padding:8px 10px; border-radius:10px; font:13px system-ui;
+      color:#fff; background:#b00020; box-shadow:0 4px 10px rgba(0,0,0,.2);
+    }
+  </style>
+</head>
+
+<body>
+  <div id="map"></div>
+  <div id="banner">WAITING FOR DATA…</div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+
+  <script>
+    const banner = document.getElementById("banner");
+
+    function qNum(name) {
+      const v = new URLSearchParams(location.search).get(name);
+      if (v === null || v === "") return null;
+      const n = Number(v);
+      return Number.isFinite(n) ? n : null;
+    }
+
+    const south = qNum("south");
+    const west  = qNum("west");
+    const north = qNum("north");
+    const east  = qNum("east");
+
+    // color can be "red" or "%23cc0000" (preferred)
+    const color = new URLSearchParams(location.search).get("color") || "#cc0000";
+
+    // Create base map (Carmel fallback)
+    const map = L.map("map", { zoomControl: true }).setView([39.9784, -86.1180], 12);
+
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    const hasBounds = [south, west, north, east].every(n => typeof n === "number" && Number.isFinite(n));
+
+    if (!hasBounds) {
+      banner.textContent = "MISSING BOUNDS ❌";
+    } else {
+      banner.style.background = "#0b6b0b";
+      banner.textContent = "ZONE LOADED ✅";
+
+      const bounds = L.latLngBounds([south, west], [north, east]);
+
+      L.rectangle(bounds, {
+        color: color,
+        fillColor: color,
+        fillOpacity: 0.18,
+        weight: 3
+      }).addTo(map);
+
+      map.fitBounds(bounds, { padding: [20, 20] });
+    }
+  </script>
+</body>
+</html>
