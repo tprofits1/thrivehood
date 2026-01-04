@@ -4,6 +4,7 @@
     <meta charset="utf-8" />
     <title>Thrivehood Area Selector</title>
 
+    <!-- Leaflet CSS -->
     <link
       rel="stylesheet"
       href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
@@ -11,42 +12,60 @@
     />
 
     <style>
-      html, body { margin:0; padding:0; height:100%; }
-
-      body{
-        display:flex;
-        flex-direction:column;
-        height:100%;
-        font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+      html, body {
+        margin: 0;
+        padding: 0;
+        height: 100%;
       }
 
-      #map{
-        width:100%;
+      body {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      /* ===============================
+         MAP (Desktop / Default)
+      =============================== */
+      #map {
+        width: 100%;
         flex: 1 1 auto;
         min-height: 420px;
       }
 
-      .info-box{
-        width:100%;
-        background:rgba(255,255,255,0.95);
-        padding:10px 12px;
-        font-size:14px;
-        line-height:1.4;
-        border-top:1px solid #ddd;
-        box-sizing:border-box;
+      /* ===============================
+         MOBILE HEIGHT FIX (Option A)
+      =============================== */
+      @media (max-width: 768px) {
+        #map {
+          flex: 0 0 auto;
+          height: 45vh;
+          min-height: 260px;
+        }
+      }
+
+      .info-box {
+        width: 100%;
+        background: rgba(255,255,255,0.95);
+        padding: 10px 12px;
+        font-size: 14px;
+        line-height: 1.4;
+        border-top: 1px solid #ddd;
+        box-sizing: border-box;
         flex: 0 0 auto;
       }
 
-      .btn-confirm{
-        display:inline-block;
-        margin-top:6px;
-        padding:6px 12px;
-        border-radius:999px;
-        border:none;
-        background:#4c9949;
-        color:#fff;
-        font-size:13px;
-        cursor:pointer;
+      .btn-confirm {
+        display: inline-block;
+        margin-top: 6px;
+        padding: 6px 12px;
+        border-radius: 999px;
+        border: none;
+        background: #4c9949;
+        color: #fff;
+        font-size: 13px;
+        cursor: pointer;
       }
     </style>
   </head>
@@ -64,6 +83,7 @@
       </div>
     </div>
 
+    <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <script>
@@ -77,7 +97,7 @@
       const statusEl = document.getElementById("status");
 
       // =====================================================
-      // WIX/RESPONSIVE FIX: force Leaflet to recalc size
+      // WIX / RESPONSIVE FIX
       // =====================================================
       function fixLeafletResize(map) {
         [50, 150, 300, 600, 1000, 1600].forEach(ms => {
@@ -109,7 +129,7 @@
       fixLeafletResize(map);
 
       // =====================================================
-      // CLAIMED RECTS LAYER (from Wix)
+      // CLAIMED AREAS LAYER
       // =====================================================
       const claimedLayer = L.featureGroup().addTo(map);
 
@@ -124,7 +144,10 @@
             typeof r.east  !== "number"
           ) return;
 
-          const bounds = L.latLngBounds([r.south, r.west], [r.north, r.east]);
+          const bounds = L.latLngBounds(
+            [r.south, r.west],
+            [r.north, r.east]
+          );
 
           L.rectangle(bounds, {
             color: "#cc0000",
@@ -138,7 +161,7 @@
       }
 
       // =====================================================
-      // VIEWPORT -> WIX MESSAGING (debounced)
+      // VIEWPORT -> PARENT (debounced)
       // =====================================================
       let viewportTimer = null;
 
@@ -169,10 +192,9 @@
 
       window.addEventListener("beforeunload", () => {
         if (viewportTimer) clearTimeout(viewportTimer);
-        viewportTimer = null;
       });
 
-      window.addEventListener("message", function(event) {
+      window.addEventListener("message", event => {
         const data = event.data;
         if (!data || !data.type) return;
 
@@ -182,24 +204,23 @@
       });
 
       // =====================================================
-      // SELECTION (0.75 x 0.75) + MESSAGES
+      // SELECTION LOGIC (0.75mi x 0.75mi)
       // =====================================================
       let selectedRect = null;
       let selectedBounds = null;
-      let selectedCenter = null; // {lat,lng}
+      let selectedCenter = null;
 
       function metersToDegrees(lat, meters) {
         const earthRadius = 6378137;
         const dLat = (meters / earthRadius) * (180 / Math.PI);
-        const dLng = (meters / (earthRadius * Math.cos((Math.PI * lat / 180)))) * (180 / Math.PI);
+        const dLng = (meters / (earthRadius * Math.cos(lat * Math.PI / 180))) * (180 / Math.PI);
         return { dLat, dLng };
       }
 
       function buildAreaDataFromBounds(bounds, centerLat, centerLng) {
         const sw = bounds.getSouthWest();
         const ne = bounds.getNorthEast();
-        const radiusMiles = 0.75; // used by parent summary fields
-        const adGeoString = `${centerLat.toFixed(5)},${centerLng.toFixed(5)},${radiusMiles}mi`;
+        const radiusMiles = 0.75;
 
         return {
           south: sw.lat,
@@ -209,15 +230,13 @@
           centerLat,
           centerLng,
           radiusMiles,
-          adGeoString
+          adGeoString: `${centerLat.toFixed(5)},${centerLng.toFixed(5)},${radiusMiles}mi`
         };
       }
 
       function postPreviewMessage() {
         if (!selectedBounds || !selectedCenter) return;
 
-        // IMPORTANT:
-        // Parent (/services) expects preview as THRIVEHOOD_AREA_SELECTED
         window.parent.postMessage({
           type: "THRIVEHOOD_AREA_SELECTED",
           bounds: {
@@ -236,8 +255,6 @@
           selectedCenter.lng
         );
 
-        // IMPORTANT:
-        // Parent (/services) expects confirm as THRIVEHOOD_AREA_CONFIRMED
         window.parent.postMessage({
           type: "THRIVEHOOD_AREA_CONFIRMED",
           areaData,
@@ -248,7 +265,7 @@
         }, "*");
       }
 
-      map.on("click", function (e) {
+      map.on("click", e => {
         const lat = e.latlng.lat;
         const lng = e.latlng.lng;
         selectedCenter = { lat, lng };
@@ -256,12 +273,10 @@
         const half = SELECTION_METERS / 2;
         const { dLat, dLng } = metersToDegrees(lat, half);
 
-        const north = lat + dLat;
-        const south = lat - dLat;
-        const east  = lng + dLng;
-        const west  = lng - dLng;
-
-        const bounds = L.latLngBounds([south, west], [north, east]);
+        const bounds = L.latLngBounds(
+          [lat - dLat, lng - dLng],
+          [lat + dLat, lng + dLng]
+        );
 
         if (selectedRect) map.removeLayer(selectedRect);
 
@@ -273,13 +288,11 @@
 
         selectedBounds = bounds;
 
-        // Preview message (keeps parent fresh even if user forgets confirm)
         postPreviewMessage();
-
         statusEl.textContent = "Area selected. Click Confirm to continue.";
       });
 
-      document.getElementById("confirmBtn").addEventListener("click", function () {
+      document.getElementById("confirmBtn").addEventListener("click", () => {
         if (!selectedBounds || !selectedCenter) {
           alert("Please click on the map to select an area first.");
           return;
@@ -291,10 +304,3 @@
     </script>
   </body>
 </html>
-
-
-
-
-
-
-
