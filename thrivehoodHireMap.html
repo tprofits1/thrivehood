@@ -1,84 +1,249 @@
-function sanitizeSlug(slug) {
-  // Keep it simple: letters, numbers, dash, underscore only
-  return String(slug || "")
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9_-]/g, "");
-}
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Thrivehood Hire Map</title>
 
-function buildThrivePageUrl(slug) {
-  const safe = sanitizeSlug(slug);
-  if (!safe) return null;
-  return `https://thrivehood.biz/${safe}`;
-}
+    <!-- Leaflet CSS -->
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      crossorigin=""
+    />
 
-function renderTeenCircles(circles) {
-  teenCirclesLayer.clearLayers();
+    <style>
+      html, body { margin: 0; padding: 0; height: 100%; }
 
-  (circles || []).forEach(c => {
-    if (typeof c.lat !== "number" || typeof c.lng !== "number") return;
+      body {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
 
-    const radiusMeters =
-      (typeof c.radiusMeters === "number" && c.radiusMeters > 0)
-        ? c.radiusMeters
-        : (0.35 * METERS_PER_MILE);
+      /* Map area */
+      #map {
+        width: 100%;
+        flex: 1 1 auto;
+        min-height: 420px;
+      }
 
-    // 1) Draw the circle
-    const circle = L.circle([c.lat, c.lng], {
-      radius: radiusMeters,
-      color: "#2b7cff",
-      weight: 1,
-      fillColor: "#2b7cff",
-      fillOpacity: 0.10
-    }).addTo(teenCirclesLayer);
+      /* Mobile height fix */
+      @media (max-width: 768px) {
+        #map {
+          flex: 0 0 auto;
+          height: 55vh;
+          min-height: 300px;
+        }
+      }
 
-    // 2) Add a center marker with link
-    const url = buildThrivePageUrl(c.thrivepage);
+      .info-box {
+        width: 100%;
+        background: rgba(255,255,255,0.95);
+        padding: 10px 12px;
+        font-size: 12px;
+        line-height: 1.4;
+        border-top: 1px solid #ddd;
+        box-sizing: border-box;
+        flex: 0 0 auto;
+      }
 
-    const marker = L.circleMarker([c.lat, c.lng], {
-      radius: 5,
-      weight: 2,
-      fillOpacity: 1
-    }).addTo(teenCirclesLayer);
+      .pill {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 999px;
+        font-size: 11px;
+        background: #eef3ff;
+        color: #234;
+        margin-right: 6px;
+      }
+    </style>
+  </head>
 
-    const displayName = c.label ? String(c.label) : "View teen";
+  <body>
+    <div id="map"></div>
 
-    if (url) {
-      marker.bindPopup(`
-        <div style="font-family: system-ui, -apple-system, Segoe UI, sans-serif;">
-          <div style="font-size: 13px; font-weight: 700; margin-bottom: 6px;">${displayName}</div>
-          <a href="${url}" target="_top" rel="noopener"
-             style="display:inline-block; padding:6px 10px; border-radius:999px;
-                    background:#4c9949; color:#fff; text-decoration:none; font-size:12px;">
-            Open Thrivepage →
-          </a>
-        </div>
-      `);
-    } else {
-      marker.bindPopup(`
-        <div style="font-family: system-ui, -apple-system, Segoe UI, sans-serif;">
-          <div style="font-size: 13px; font-weight: 700;">${displayName}</div>
-          <div style="font-size: 12px; color:#666; margin-top:6px;">
-            (No thrivepage slug found)
-          </div>
-        </div>
-      `);
-    }
+    <div class="info-box">
+      <span class="pill">Hire Map</span>
+      <span class="pill">0.35 mi circles</span>
+      <div id="status" style="margin-top:6px; font-size:12px; color:#555;">
+        Loading…
+      </div>
+    </div>
 
-    // Optional: hover label
-    if (c.label) marker.bindTooltip(String(c.label), { sticky: true });
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-    // Optional: click marker -> also notify Wix which teen was clicked
-    if (c.id) {
-      marker.on("click", () => {
+    <script>
+      // =====================================================
+      // CONSTANTS
+      // =====================================================
+      const METERS_PER_MILE = 1609.34;
+      const DEFAULT_RADIUS_MILES = 0.35;
+
+      const statusEl = document.getElementById("status");
+
+      // =====================================================
+      // WIX / RESPONSIVE FIX
+      // =====================================================
+      function fixLeafletResize(map) {
+        [50, 150, 300, 600, 1000, 1600].forEach(ms => {
+          setTimeout(() => map.invalidateSize(true), ms);
+        });
+
+        window.addEventListener("resize", () => {
+          map.invalidateSize(true);
+        });
+      }
+
+      // =====================================================
+      // MAP SETUP
+      // =====================================================
+      const map = L.map("map", {
+        zoomControl: true,
+        preferCanvas: true
+      }).setView([39.9784, -86.1180], 13);
+
+      const tiles = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19,
+        attribution: "&copy; OpenStreetMap contributors"
+      }).addTo(map);
+
+      tiles.on("load", () => map.invalidateSize(true));
+      fixLeafletResize(map);
+
+      // =====================================================
+      // TEEN CIRCLES LAYER
+      // =====================================================
+      const teenCirclesLayer = L.featureGroup().addTo(map);
+
+      function sanitizeSlug(slug) {
+        // Keep letters/numbers/dash/underscore; replace spaces with dash
+        return String(slug || "")
+          .trim()
+          .replace(/\s+/g, "-")
+          .replace(/[^A-Za-z0-9_-]/g, "");
+      }
+
+      function buildThrivePageUrl(slug) {
+        const safe = sanitizeSlug(slug);
+        if (!safe) return null;
+        return `https://www.thrivehood.biz/${safe}`;
+      }
+
+      function renderTeenCircles(circles) {
+        teenCirclesLayer.clearLayers();
+
+        (circles || []).forEach(c => {
+          if (typeof c.lat !== "number" || typeof c.lng !== "number") return;
+
+          const radiusMeters =
+            (typeof c.radiusMeters === "number" && c.radiusMeters > 0)
+              ? c.radiusMeters
+              : (DEFAULT_RADIUS_MILES * METERS_PER_MILE);
+
+          // 1) Circle overlay
+          L.circle([c.lat, c.lng], {
+            radius: radiusMeters,
+            color: "#2b7cff",
+            weight: 1,
+            fillColor: "#2b7cff",
+            fillOpacity: 0.10
+          }).addTo(teenCirclesLayer);
+
+          // 2) Center marker with link popup
+          const url = buildThrivePageUrl(c.thrivepage);
+          const name = c.label ? String(c.label) : "View teen";
+
+          const marker = L.circleMarker([c.lat, c.lng], {
+            radius: 5,
+            weight: 2,
+            fillOpacity: 1
+          }).addTo(teenCirclesLayer);
+
+          if (url) {
+            marker.bindPopup(`
+              <div style="font-family: system-ui, -apple-system, Segoe UI, sans-serif;">
+                <div style="font-size: 13px; font-weight: 700; margin-bottom: 6px;">${name}</div>
+                <a href="${url}" target="_top" rel="noopener"
+                   style="display:inline-block; padding:6px 10px; border-radius:999px;
+                          background:#4c9949; color:#fff; text-decoration:none; font-size:12px;">
+                  Open Thrivepage →
+                </a>
+              </div>
+            `);
+          } else {
+            marker.bindPopup(`
+              <div style="font-family: system-ui, -apple-system, Segoe UI, sans-serif;">
+                <div style="font-size: 13px; font-weight: 700;">${name}</div>
+                <div style="font-size: 12px; color:#666; margin-top:6px;">
+                  (No thrivepage set)
+                </div>
+              </div>
+            `);
+          }
+
+          // Optional hover label
+          if (c.label) marker.bindTooltip(String(c.label), { sticky: true });
+        });
+
+        statusEl.textContent = `Showing ${(circles || []).length} teen service circles in view.`;
+      }
+
+      // =====================================================
+      // VIEWPORT -> PARENT (debounced)
+      // =====================================================
+      let viewportTimer = null;
+
+      function sendViewportBounds() {
+        const b = map.getBounds();
         window.parent.postMessage({
-          type: "THRIVEHOOD_TEEN_CLICKED",
-          teenId: c.id,
-          thrivepage: c.thrivepage || null
+          type: "THRIVEHOOD_VIEWPORT_BOUNDS",
+          bounds: {
+            south: b.getSouth(),
+            west:  b.getWest(),
+            north: b.getNorth(),
+            east:  b.getEast()
+          }
         }, "*");
-      });
-    }
-  });
 
-  statusEl.textContent = `Showing ${(circles || []).length} teen service circles in view.`;
-}
+        statusEl.textContent = "Loading teen circles…";
+      }
+
+      function requestViewportUpdate() {
+        if (viewportTimer) clearTimeout(viewportTimer);
+        viewportTimer = setTimeout(sendViewportBounds, 200);
+      }
+
+      map.whenReady(() => {
+        map.invalidateSize(true);
+        sendViewportBounds(); // initial load
+      });
+
+      map.on("moveend zoomend", requestViewportUpdate);
+
+      window.addEventListener("beforeunload", () => {
+        if (viewportTimer) clearTimeout(viewportTimer);
+      });
+
+      // =====================================================
+      // MESSAGE FROM WIX -> DRAW
+      // =====================================================
+      window.addEventListener("message", event => {
+        const data = event.data;
+        if (!data || !data.type) return;
+
+        if (data.type === "THRIVEHOOD_TEEN_CIRCLES") {
+          renderTeenCircles(data.circles || []);
+          return;
+        }
+
+        if (data.type === "THRIVEHOOD_CLEAR_TEEN_CIRCLES") {
+          teenCirclesLayer.clearLayers();
+          statusEl.textContent = "Cleared teen circles.";
+          return;
+        }
+      });
+    </script>
+  </body>
+</html>
