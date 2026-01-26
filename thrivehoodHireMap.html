@@ -76,24 +76,25 @@
           const name = c.label ? String(c.label) : "View teen";
 
           const popupHtml = url
-            ? `
-              <div style="font-family: system-ui, -apple-system, Segoe UI, sans-serif;">
-                <div style="font-size: 13px; font-weight: 700; margin-bottom: 6px;">${name}</div>
-                <a href="${url}" target="_top" rel="noopener"
-                   style="display:inline-block; padding:6px 10px; border-radius:999px;
-                          background:#4c9949; color:#fff; text-decoration:none; font-size:12px;">
-                  Open Thrivepage →
-                </a>
-              </div>
-            `
-            : `
-              <div style="font-family: system-ui, -apple-system, Segoe UI, sans-serif;">
-                <div style="font-size: 13px; font-weight: 700;">${name}</div>
-                <div style="font-size: 12px; color:#666; margin-top:6px;">
-                  (No thrivepage set / not readable)
-                </div>
-              </div>
-            `;
+  ? `
+    <div style="font-family: system-ui, -apple-system, Segoe UI, sans-serif;">
+      <a href="${url}" target="_top" rel="noopener"
+         style="display:inline-block; padding:10px 14px; border-radius:999px;
+                background:#4c9949; color:#fff; text-decoration:none;
+                font-size:14px; font-weight:700;">
+        Hire ${name} →
+      </a>
+    </div>
+  `
+  : `
+    <div style="font-family: system-ui, -apple-system, Segoe UI, sans-serif;">
+      <div style="font-size: 13px; font-weight: 700;">${name}</div>
+      <div style="font-size: 12px; color:#666; margin-top:6px;">
+        (Profile coming soon)
+      </div>
+    </div>
+  `;
+
 
           const circle = L.circle([c.lat, c.lng], {
             radius: radiusMeters,
