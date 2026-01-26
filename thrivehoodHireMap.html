@@ -131,6 +131,9 @@
         return `https://www.thrivehood.biz/${safe}`;
       }
 
+      // =====================================================
+      // OPTION A: Clicking the circle opens the popup
+      // =====================================================
       function renderTeenCircles(circles) {
         teenCirclesLayer.clearLayers();
 
@@ -142,27 +145,12 @@
               ? c.radiusMeters
               : (DEFAULT_RADIUS_MILES * METERS_PER_MILE);
 
-          // 1) Circle overlay
-          L.circle([c.lat, c.lng], {
-            radius: radiusMeters,
-            color: "#2b7cff",
-            weight: 1,
-            fillColor: "#2b7cff",
-            fillOpacity: 0.10
-          }).addTo(teenCirclesLayer);
-
-          // 2) Center marker with link popup
           const url = buildThrivePageUrl(c.thrivepage);
           const name = c.label ? String(c.label) : "View teen";
 
-          const marker = L.circleMarker([c.lat, c.lng], {
-            radius: 5,
-            weight: 2,
-            fillOpacity: 1
-          }).addTo(teenCirclesLayer);
-
-          if (url) {
-            marker.bindPopup(`
+          // Build popup HTML once
+          const popupHtml = url
+            ? `
               <div style="font-family: system-ui, -apple-system, Segoe UI, sans-serif;">
                 <div style="font-size: 13px; font-weight: 700; margin-bottom: 6px;">${name}</div>
                 <a href="${url}" target="_top" rel="noopener"
@@ -171,20 +159,46 @@
                   Open Thrivepage →
                 </a>
               </div>
-            `);
-          } else {
-            marker.bindPopup(`
+            `
+            : `
               <div style="font-family: system-ui, -apple-system, Segoe UI, sans-serif;">
                 <div style="font-size: 13px; font-weight: 700;">${name}</div>
                 <div style="font-size: 12px; color:#666; margin-top:6px;">
                   (No thrivepage set)
                 </div>
               </div>
-            `);
+            `;
+
+          // 1) Clickable circle overlay
+          const circle = L.circle([c.lat, c.lng], {
+            radius: radiusMeters,
+            color: "#2b7cff",
+            weight: 1,
+            fillColor: "#2b7cff",
+            fillOpacity: 0.10
+          }).addTo(teenCirclesLayer);
+
+          // 2) Center marker
+          const marker = L.circleMarker([c.lat, c.lng], {
+            radius: 5,
+            weight: 2,
+            fillOpacity: 1
+          }).addTo(teenCirclesLayer);
+
+          // Bind popup to BOTH the marker and the circle
+          marker.bindPopup(popupHtml);
+          circle.bindPopup(popupHtml);
+
+          // Tooltip on hover (bind to BOTH)
+          if (c.label) {
+            marker.bindTooltip(String(c.label), { sticky: true });
+            circle.bindTooltip(String(c.label), { sticky: true });
           }
 
-          // Optional hover label
-          if (c.label) marker.bindTooltip(String(c.label), { sticky: true });
+          // Ensure circle click opens popup reliably
+          circle.on("click", () => {
+            circle.openPopup();
+          });
         });
 
         statusEl.textContent = `Showing ${(circles || []).length} teen service circles in view.`;
