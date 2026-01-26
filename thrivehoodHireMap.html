@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Thrivehood Hire Map</title>
+
+    <!-- Leaflet CSS -->
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      crossorigin=""
+    />
+
+    <style>
+      html, body { margin: 0; padding: 0; height: 100%; }
+
+      body {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      #map {
+        width: 100%;
+        flex: 1 1 auto;
+        min-height: 420px;
+      }
+
+      @media (max-width: 768px) {
+        #map {
+          flex: 0 0 auto;
+          height: 55vh;
+          min-height: 300px;
+        }
+      }
+
+      .info-box {
+        width: 100%;
+        background: rgba(255,255,255,0.95);
+        padding: 10px 12px;
+        font-size: 12px;
+        line-height: 1.4;
+        border-top: 1px solid #ddd;
+        box-sizing: border-box;
+        flex: 0 0 auto;
+      }
+
+      .pill {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 999px;
+        font-size: 11px;
+        background: #eef3ff;
+        color: #234;
+        margin-right: 6px;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div id="map"></div>
+
+    <div class="info-box">
+      <span class="pill">Hire Map</span>
+      <span class="pill">0.35 mi service circles</span>
+      <div id="status" style="margin-top:6px; font-size:12px; color:#555;">
+        Loading…
+      </div>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <script>
+      // =====================================================
+      // CONSTANTS
+      // =====================================================
+      const METERS_PER_MILE = 1609.34;
+
+      const statusEl = document.getElementById("status");
+
+      // =====================================================
+      // WIX / RESPONSIVE FIX
+      // =====================================================
+      function fixLeafletResize(map) {
+        [50, 150, 300, 600, 1000, 1600].forEach(ms => {
+          setTimeout(() => map.invalidateSize(true), ms);
+        });
+        window.addEventListener("resize", () => map.invalidateSize(true));
+      }
+
+      // =====================================================
+      // MAP SETUP
+      // =====================================================
+      const map = L.map("map", {
+        zoomControl: true,
+        preferCanvas: true
+      }).setView([39.9784, -86.1180], 13);
+
+      const tiles = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19,
+        attribution: "&copy; OpenStreetMap contributors"
+      }).addTo(map);
+
+      tiles.on("load", () => map.invalidateSize(true));
+      fixLeafletResize(map);
+
+      // =====================================================
+      // TEEN CIRCLES LAYER
+      // =====================================================
+      const teenCirclesLayer = L.featureGroup().addTo(map);
+
+      function renderTeenCircles(circles) {
+        teenCirclesLayer.clearLayers();
+
+        (circles || []).forEach(c => {
+          if (typeof c.lat !== "number" || typeof c.lng !== "number") return;
+
+          const radiusMeters =
+            (typeof c.radiusMeters === "number" && c.radiusMeters > 0)
+              ? c.radiusMeters
+              : (0.35 * METERS_PER_MILE);
+
+          const circle = L.circle([c.lat, c.lng], {
+            radius: radiusMeters,
+            color: "#2b7cff",
+            weight: 1,
+            fillColor: "#2b7cff",
+            fillOpacity: 0.10
+          }).addTo(teenCirclesLayer);
+
+          if (c.label) {
+            circle.bindTooltip(String(c.label), { sticky: true });
+          }
+
+          // Optional: click circle -> tell Wix which teen was clicked
+          if (c.id) {
+            circle.on("click", () => {
+              window.parent.postMessage({
+                type: "THRIVEHOOD_TEEN_CIRCLE_CLICKED",
+                teenId: c.id
+              }, "*");
+            });
+          }
+        });
+
+        statusEl.textContent = `Showing ${ (circles || []).length } teen service circles in view.`;
+      }
+
+      // =====================================================
+      // VIEWPORT -> PARENT (debounced)
+      // =====================================================
+      let viewportTimer = null;
+
+      function sendViewportBounds() {
+        const b = map.getBounds();
+        window.parent.postMessage({
+          type: "THRIVEHOOD_VIEWPORT_BOUNDS",
+          bounds: {
+            south: b.getSouth(),
+            west:  b.getWest(),
+            north: b.getNorth(),
+            east:  b.getEast()
+          }
+        }, "*");
+
+        statusEl.textContent = "Loading teen circles…";
+      }
+
+      function requestViewportUpdate() {
+        if (viewportTimer) clearTimeout(viewportTimer);
+        viewportTimer = setTimeout(sendViewportBounds, 200);
+      }
+
+      map.whenReady(() => {
+        map.invalidateSize(true);
+        sendViewportBounds(); // initial load
+      });
+
+      map.on("moveend zoomend", requestViewportUpdate);
+
+      window.addEventListener("beforeunload", () => {
+        if (viewportTimer) clearTimeout(viewportTimer);
+      });
+
+      // =====================================================
+      // MESSAGE FROM WIX -> DRAW
+      // =====================================================
+      window.addEventListener("message", event => {
+        const data = event.data;
+        if (!data || !data.type) return;
+
+        if (data.type === "THRIVEHOOD_TEEN_CIRCLES") {
+          renderTeenCircles(data.circles || []);
+          return;
+        }
+
+        // Optional: Wix can clear circles
+        if (data.type === "THRIVEHOOD_CLEAR_TEEN_CIRCLES") {
+          teenCirclesLayer.clearLayers();
+          statusEl.textContent = "Cleared teen circles.";
+          return;
+        }
+      });
+    </script>
+  </body>
+</html>
