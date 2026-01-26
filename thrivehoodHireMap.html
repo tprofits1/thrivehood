@@ -4,7 +4,6 @@
     <meta charset="utf-8" />
     <title>Thrivehood Hire Map</title>
 
-    <!-- Leaflet CSS -->
     <link
       rel="stylesheet"
       href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
@@ -21,14 +20,12 @@
         font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       }
 
-      /* Map area */
       #map {
         width: 100%;
         flex: 1 1 auto;
         min-height: 420px;
       }
 
-      /* Mobile height fix */
       @media (max-width: 768px) {
         #map {
           flex: 0 0 auto;
@@ -71,7 +68,6 @@
       </div>
     </div>
 
-    <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <script>
@@ -83,17 +79,11 @@
 
       const statusEl = document.getElementById("status");
 
-      // =====================================================
-      // WIX / RESPONSIVE FIX
-      // =====================================================
       function fixLeafletResize(map) {
         [50, 150, 300, 600, 1000, 1600].forEach(ms => {
           setTimeout(() => map.invalidateSize(true), ms);
         });
-
-        window.addEventListener("resize", () => {
-          map.invalidateSize(true);
-        });
+        window.addEventListener("resize", () => map.invalidateSize(true));
       }
 
       // =====================================================
@@ -117,23 +107,21 @@
       // =====================================================
       const teenCirclesLayer = L.featureGroup().addTo(map);
 
-      function sanitizeSlug(slug) {
-        // Keep letters/numbers/dash/underscore; replace spaces with dash
-        return String(slug || "")
-          .trim()
-          .replace(/\s+/g, "-")
-          .replace(/[^A-Za-z0-9_-]/g, "");
+      function toAbsoluteThriveUrl(thriveUrl) {
+        const s = String(thriveUrl || "").trim();
+        if (!s) return null;
+
+        // already absolute
+        if (s.startsWith("http://") || s.startsWith("https://")) return s;
+
+        // relative paths from Wix are often like "/thrivepage/ellievator"
+        if (s.startsWith("/")) return `https://www.thrivehood.biz${s}`;
+
+        // last fallback
+        return `https://www.thrivehood.biz/${s}`;
       }
 
-      function buildThrivePageUrl(slug) {
-        const safe = sanitizeSlug(slug);
-        if (!safe) return null;
-        return `https://www.thrivehood.biz/${safe}`;
-      }
-
-      // =====================================================
-      // OPTION A: Clicking the circle opens the popup
-      // =====================================================
+      // OPTION A: clicking the circle opens the popup
       function renderTeenCircles(circles) {
         teenCirclesLayer.clearLayers();
 
@@ -145,10 +133,9 @@
               ? c.radiusMeters
               : (DEFAULT_RADIUS_MILES * METERS_PER_MILE);
 
-          const url = buildThrivePageUrl(c.thrivepage);
+          const url = toAbsoluteThriveUrl(c.thriveUrl);
           const name = c.label ? String(c.label) : "View teen";
 
-          // Build popup HTML once
           const popupHtml = url
             ? `
               <div style="font-family: system-ui, -apple-system, Segoe UI, sans-serif;">
@@ -169,7 +156,7 @@
               </div>
             `;
 
-          // 1) Clickable circle overlay
+          // Circle overlay (clickable)
           const circle = L.circle([c.lat, c.lng], {
             radius: radiusMeters,
             color: "#2b7cff",
@@ -178,27 +165,26 @@
             fillOpacity: 0.10
           }).addTo(teenCirclesLayer);
 
-          // 2) Center marker
+          // Center marker (also clickable)
           const marker = L.circleMarker([c.lat, c.lng], {
             radius: 5,
             weight: 2,
             fillOpacity: 1
           }).addTo(teenCirclesLayer);
 
-          // Bind popup to BOTH the marker and the circle
-          marker.bindPopup(popupHtml);
+          // Bind popup to both
           circle.bindPopup(popupHtml);
+          marker.bindPopup(popupHtml);
 
-          // Tooltip on hover (bind to BOTH)
+          // Tooltip to both (so hover works on circle too)
           if (c.label) {
-            marker.bindTooltip(String(c.label), { sticky: true });
             circle.bindTooltip(String(c.label), { sticky: true });
+            marker.bindTooltip(String(c.label), { sticky: true });
           }
 
-          // Ensure circle click opens popup reliably
-          circle.on("click", () => {
-            circle.openPopup();
-          });
+          // Ensure click opens popup reliably
+          circle.on("click", () => circle.openPopup());
+          marker.on("click", () => marker.openPopup());
         });
 
         statusEl.textContent = `Showing ${(circles || []).length} teen service circles in view.`;
@@ -231,7 +217,7 @@
 
       map.whenReady(() => {
         map.invalidateSize(true);
-        sendViewportBounds(); // initial load
+        sendViewportBounds();
       });
 
       map.on("moveend zoomend", requestViewportUpdate);
