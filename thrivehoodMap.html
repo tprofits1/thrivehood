@@ -67,6 +67,18 @@
         font-size: 13px;
         cursor: pointer;
       }
+
+      .btn-confirm[disabled] {
+        opacity: 0.85;
+        cursor: default;
+      }
+
+      #status {
+        margin-top: 6px;
+        font-size: 12px;
+        color: #555;
+        min-height: 16px; /* keeps layout steady even when empty */
+      }
     </style>
   </head>
 
@@ -75,10 +87,10 @@
 
     <div class="info-box">
       <strong>Step 1:</strong> Tap the map to pick the area where you’ll offer your services.<br />
-      <strong>Step 2:</strong> Red areas are already claimed. You may overlap slightly, but please keep overlap to 20% or less.</br>
-      <strong>Step 3:</strong> Click “Confirm Area” to continue.
-      <br />
+      <strong>Step 2:</strong> 🔴 Red areas are already claimed. You may overlap slightly, but please keep overlap to <strong>20% or less</strong>.<br />
+      <strong>Step 3:</strong> Click “Confirm Area” to continue.<br />
       <button class="btn-confirm" id="confirmBtn">Confirm Area</button>
+      <div id="status"></div>
     </div>
 
     <!-- Leaflet JS -->
@@ -92,7 +104,38 @@
       const SELECTION_SIZE_MILES = 0.75;
       const SELECTION_METERS = SELECTION_SIZE_MILES * METERS_PER_MILE;
 
+      // Initial map center (Carmel, IN)
+      const START_LAT = 39.9784;
+      const START_LNG = -86.1180;
+      const START_ZOOM = 12;
+
+      // UI elements
       const statusEl = document.getElementById("status");
+      const confirmBtn = document.getElementById("confirmBtn");
+
+      function setStatus(msg) {
+        if (!statusEl) return;
+        statusEl.textContent = msg || "";
+      }
+
+      function setConfirmButtonState(state) {
+        // state: "ready" | "confirmed"
+        if (!confirmBtn) return;
+
+        if (state === "confirmed") {
+          confirmBtn.textContent = "Area Confirmed!";
+          confirmBtn.disabled = true;
+          confirmBtn.style.background = "#888";
+        } else {
+          confirmBtn.textContent = "Confirm Area";
+          confirmBtn.disabled = false;
+          confirmBtn.style.background = "#4c9949";
+        }
+      }
+
+      // Start with no status text
+      setStatus("");
+      setConfirmButtonState("ready");
 
       // =====================================================
       // WIX / RESPONSIVE FIX
@@ -113,7 +156,7 @@
       const map = L.map("map", {
         zoomControl: true,
         preferCanvas: true
-      }).setView([39.9784, -86.1180], 13);
+      }).setView([START_LAT, START_LNG], START_ZOOM);
 
       const tiles = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         maxZoom: 19,
@@ -155,7 +198,7 @@
           }).addTo(claimedLayer);
         });
 
-        //statusEl.textContent = `Claimed areas shown: ${(rects || []).length}`;
+        // Intentionally no "Claimed areas shown: X" text
       }
 
       // =====================================================
@@ -286,18 +329,25 @@
 
         selectedBounds = bounds;
 
+        // ✅ If they click a different area, allow reconfirm
+        setConfirmButtonState("ready");
+
         postPreviewMessage();
-        statusEl.textContent = "Area selected.";
+        setStatus("Area selected.");
       });
 
-      document.getElementById("confirmBtn").addEventListener("click", () => {
+      confirmBtn.addEventListener("click", () => {
         if (!selectedBounds || !selectedCenter) {
           alert("Please click on the map to select an area first.");
           return;
         }
 
         postConfirmedMessage();
-        statusEl.textContent = "Area confirmed and sent to Thrivehood!";
+
+        // ✅ Visual confirmation, but not a trap:
+        // map click will reset the button back to "Confirm Area"
+        setConfirmButtonState("confirmed");
+        setStatus("Area confirmed.");
       });
     </script>
   </body>
